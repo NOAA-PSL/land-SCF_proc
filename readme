@@ -1,7 +1,17 @@
-Standalone snow OI code to assimilate GHCN snow depth obs and IMS snow cover.
+Code for processing IMS input ascii files on the UFS model grid. 
 
-driver is adapted from ufs_utils/global_cycle/cycle.f90 
+Inputs: IMS ascci file, IMS index file (generated offline), and UFS vegetaton type file
+        IMS index file and vegetation type file both model resolution specific.
 
-Tseganeh Gichamo and Clara Draper, Mar. 2021.
+Output: file with i) IMS-derived snow cover fraction over land on UFS model grid, and ii) SWE derived form the IMS snow cover fraction, using an inversion of the noah model snow depletion curve.
+        
+
+To compile: 
+./build.sh
+
+Test case on hera: /scratch2/BMC/gsienkf/Clara.Draper/DA_test_cases/snow/fIMS
+
+
+Clara Draper, Tseganeh Gichamo, with input from Youlong Xia. June, 2021.
 
 
