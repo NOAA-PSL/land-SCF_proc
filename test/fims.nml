@@ -1,0 +1,6 @@
+ &fIMS_nml
+  idim=96, jdim=96,
+  date_str=2019121518,
+  IMS_SNOWCOVER_PATH="/scratch2/BMC/gsienkf/Tseganeh.Gichamo/SnowObs//IMS/", 
+  IMS_INDEXES_PATH="/scratch2/BMC/gsienkf/Tseganeh.Gichamo/SnowObs//IMS_INDEXES/"
+  / 
