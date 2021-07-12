@@ -122,7 +122,7 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         call netcdf_err(error, 'defining xaxis dimension' )
         error = nf90_def_dim(ncid, 'yaxis_1', jdim, dim_y)
         call netcdf_err(error, 'defining yaxis dimension' )
-        error = nf90_def_dim(ncid, 'time', 1, dim_time)
+        error = nf90_def_dim(ncid, 'Time', 1, dim_time)
         call netcdf_err(error, 'defining time dimension' )
 
         !--- define fields
@@ -132,7 +132,7 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         call netcdf_err(error, 'defining xaxis_1 long name' )
         error = nf90_put_att(ncid, id_x, "units", "none")
         call netcdf_err(error, 'defining xaxis_1 units' )
-        error = nf90_put_att(ncid, id_x, "cartesian_axis", "x")
+        error = nf90_put_att(ncid, id_x, "cartesian_axis", "X")
         call netcdf_err(error, 'writing xaxis_1 field' )
 
         error = nf90_def_var(ncid, 'yaxis_1', nf90_float, dim_y, id_y)
@@ -141,16 +141,16 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         call netcdf_err(error, 'defining yaxis_1 long name' )
         error = nf90_put_att(ncid, id_y, "units", "none")
         call netcdf_err(error, 'defining yaxis_1 units' )
-        error = nf90_put_att(ncid, id_y, "cartesian_axis", "y")
+        error = nf90_put_att(ncid, id_y, "cartesian_axis", "Y")
         call netcdf_err(error, 'writing yaxis_1 field' )
 
-        error = nf90_def_var(ncid, 'time', nf90_float, dim_time, id_time)
+        error = nf90_def_var(ncid, 'Time', nf90_float, dim_time, id_time)
         call netcdf_err(error, 'defining time field' )
-        error = nf90_put_att(ncid, id_time, "long_name", "time")
+        error = nf90_put_att(ncid, id_time, "long_name", "Time")
         call netcdf_err(error, 'defining time long name' )
         error = nf90_put_att(ncid, id_time, "units", "time level")
         call netcdf_err(error, 'defining time units' )
-        error = nf90_put_att(ncid, id_time, "cartesian_axis", "t")
+        error = nf90_put_att(ncid, id_time, "cartesian_axis", "T")
         call netcdf_err(error, 'writing time field' )
 
         dIMS_3d(1) = dim_x
