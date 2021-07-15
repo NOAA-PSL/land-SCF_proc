@@ -14,6 +14,6 @@ driver_fIMS.o: IMSaggregate_mod.o driver_fIMS.f90
 	$(FC)  $(FFLAGS) -c driver_fIMS.f90
 
 install:
-	-cp -p $(CMD) ../exec/.
+	-cp -p $(CMD) ../../exec/.
 clean:
 	-rm -f $(OBJS) *.mod $(CMD)
