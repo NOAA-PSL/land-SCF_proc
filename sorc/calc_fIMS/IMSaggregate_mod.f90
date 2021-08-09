@@ -39,14 +39,14 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         real                :: sncov_IMS(lensfc)   ! IMS fractional snow cover in model grid
         real                :: swe_IMS(lensfc)     ! SWE derived from sncov_IMS, on model grid
         real                :: vtype(lensfc)       ! model vegetation type
-        real                :: landmask(lensfc)    
-        real                :: swefcs(lensfc), sndfcs(lensfc), denfsc(lensfc) ! forecast SWE, SND, and density
+        integer             :: landmask(lensfc)    
+        real                :: swefcs(lensfc), sndfcs(lensfc), denfcs(lensfc) ! forecast SWE, SND, and density
 
         integer, parameter :: printrank = 4 
 
 
 !=============================================================================================
-! 1. Read veg type, and IMS data and indexes from file, then calculate SWE
+! 1. Read forecast info, and IMS data and indexes from file, then calculate SWE
 !=============================================================================================
 
         ! rank 0 reads tile 1, etc.
@@ -55,9 +55,11 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
 
         ! read forecast file
         fcast_inp_file = "./fnbgsi.00" // tile_str
-        if (myrank==printrank) print *, 'reading model backgroundfile for veg type', trim(fcast_inp_file)
+        if (myrank==printrank) print *, 'reading model backgroundfile:', trim(fcast_inp_file)
                                      
         call read_fcst(fcast_inp_file, lensfc, vtype, swefcs, sndfcs, landmask)
+
+        call calc_density(lensfc, landmask, swefcs, sndfcs, myrank, denfcs)
 
         ! read IMS obs, and indexes, map to model grid
         IMS_inp_file = trim(IMS_snowcover_path)//"IMS.SNCOV."//date_str//".nc"                 
@@ -218,7 +220,7 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
 !====================================
 ! read in vegetation file from a UFS surface restart 
 
- subroutine read_fcast(fcst_inp_path, lensfc, vetfcs, swefcs, sndfcs, landmask)
+ subroutine read_fcst(fcst_inp_path, lensfc, vetfcs, swefcs, sndfcs, landmask)
 
         implicit none
 
@@ -227,7 +229,8 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         character(len=*), intent(in)      :: fcst_inp_path
         integer, intent(in)               :: lensfc
         real, intent(out)                 :: vetfcs(lensfc), swefcs(lensfc)
-        real, intent(out)                 :: sndfcs(lensfc),landmask(lensfc)
+        real, intent(out)                 :: sndfcs(lensfc)
+        integer, intent(out)              :: landmask(lensfc)
 
         integer                   :: error, ncid, i
         integer                   :: idim, jdim, id_dim
@@ -313,7 +316,45 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
            endif
         enddo
 
- end subroutine read_fcast
+ end subroutine read_fcst
+
+
+!====================================
+! calculate snow density from forecast fields.
+! density = SWE/SND where snow present. 
+!         = average from snow forecasts over land, where snow not present
+
+ subroutine calc_density(lensfc, landmask, swe, snd, rank, density)
+
+       implicit none 
+
+       integer, intent(in) :: lensfc, rank
+       integer, intent(in) :: landmask(lensfc)
+       real, intent(in)    :: swe(lensfc), snd(lensfc)
+       real, intent(out)   :: density(lensfc)
+
+       real :: dens_mean
+
+
+        ! density = swe/snd
+        density = swe/snd
+        where (density < 0.0001) density = 0.1
+
+        ! calculate mean density over land
+        if (count (landmask==1 .and. snd> 0.01) > 0) then
+                ! mean density over snow-covered land
+                dens_mean = sum(density, mask = (landmask==1 .and. snd>0.01 )) &
+                         / count (landmask==1 .and. snd> 0.01)
+                print *, 'mean density on tile ', rank,': ', dens_mean
+        else
+                dens_mean = 0.1  ! default value if have no snow in tile
+                print *, 'no snow on tile ', rank, ' using default density ', dens_mean
+        endif
+
+        ! for grid cells with no valid density, fill in the average snodens
+        where( snd <= 0.01 ) density = dens_mean
+
+ end subroutine calc_density
 
 !====================================
 ! read in the IMS observations and  associated index file, then 
