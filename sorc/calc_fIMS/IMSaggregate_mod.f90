@@ -31,13 +31,14 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         character(len=10), intent(in) :: date_str ! yyyymmddhh
         character(len=*), intent(in)   :: IMS_snowcover_path, IMS_indexes_path
 
-        integer             :: ierr     
+        integer             :: ierr, i
         character(len=250)  :: IMS_inp_file, IMS_inp_file_indices 
         character(len=250)  :: IMS_out_file, fcast_inp_file
         character(len=1)    :: tile_str
         character(len=3)    :: resl_str
         real                :: sncov_IMS(lensfc)   ! IMS fractional snow cover in model grid
         real                :: swe_IMS(lensfc)     ! SWE derived from sncov_IMS, on model grid
+        real                :: snd_IMS(lensfc)     ! snow depth derived from sncov_IMS, on model grid
         real                :: vtype(lensfc)       ! model vegetation type
         integer             :: landmask(lensfc)    
         real                :: swefcs(lensfc), sndfcs(lensfc), denfcs(lensfc) ! forecast SWE, SND, and density
@@ -73,8 +74,19 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
                                                     myrank, jdim, idim, sncov_IMS)
 
         if (myrank==printrank) print*,'read in sncov, converting to snow depth' 
- 
+
+        ! calculate SWE from IMS snow cover fraction (using model relationship) 
         call calcSWEfromSCFnoah(sncov_IMS, vtype, lensfc, swe_IMS)
+
+        ! calculate snow depth from IMS SWE, using model density
+        do i =1,lensfc 
+           if  ( abs(sncov_IMS(i) -nodata_real) > nodata_tol ) then 
+                snd_IMS(i) = swe_IMS(i)/denfcs(i) 
+           else
+                snd_IMS(i) = nodata_real 
+           endif 
+        enddo 
+                
 
 !=============================================================================================
 ! 2.  Write outputs
@@ -83,7 +95,7 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         IMS_out_file = "./IMSfSCA.tile"//tile_str//".nc"  !  
         if (myrank==printrank) print*,'writing output to ',trim(IMS_out_file) 
         call write_fsca_outputs(trim(IMS_out_file), idim, jdim, lensfc, myrank, &
-                              sncov_IMS, swe_IMS) 
+                              sncov_IMS, snd_IMS) 
 
         call mpi_barrier(mpi_comm_world, ierr)
 
@@ -96,14 +108,14 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
 ! routine to write the output to file
 
  subroutine write_fsca_outputs(output_file, idim, jdim, lensfc, myrank,   &
-                                 sncov_IMS, swe_IMS)  !, anl_fsca) !updated snocov
+                                 sncov_IMS, snd_IMS)
         !------------------------------------------------------------------
         !------------------------------------------------------------------
         implicit none
 
         character(len=*), intent(in)      :: output_file
         integer, intent(in)         :: idim, jdim, lensfc, myrank
-        real, intent(in)            ::  sncov_IMS(lensfc), swe_IMS(lensfc)
+        real, intent(in)            ::  sncov_IMS(lensfc), snd_IMS(lensfc)
 
         integer                     :: fsize=65536, inital=0
         integer                     :: header_buffer_val = 16384
@@ -168,12 +180,12 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         error = nf90_put_att(ncid, id_IMScov, "units", "-")
         call netcdf_err(error, 'defining IMSfsca units' )
 
-        error = nf90_def_var(ncid, 'IMSswe', nf90_double, dIMS_3d, id_IMSsnd)
-        call netcdf_err(error, 'defining IMSswe' )
-        error = nf90_put_att(ncid, id_IMSsnd, "long_name", "IMS snow water equivalent")
-        call netcdf_err(error, 'defining IMSswe long name' )
+        error = nf90_def_var(ncid, 'IMSsnd', nf90_double, dIMS_3d, id_IMSsnd)
+        call netcdf_err(error, 'defining IMSsnd' )
+        error = nf90_put_att(ncid, id_IMSsnd, "long_name", "IMS snow depth")
+        call netcdf_err(error, 'defining IMSsnd long name' )
         error = nf90_put_att(ncid, id_IMSsnd, "units", "mm")
-        call netcdf_err(error, 'defining IMSswe units' )
+        call netcdf_err(error, 'defining IMSsnd units' )
 
         error = nf90_enddef(ncid, header_buffer_val,4,0,4)
         call netcdf_err(error, 'defining header' )
@@ -205,9 +217,9 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         error = nf90_put_var(ncid, id_IMScov, dum2d, dIMS_strt, dIMS_end)
         call netcdf_err(error, 'writing IMSfsca record')
 
-        dum2d = reshape(swe_IMS, (/idim, jdim/))        
+        dum2d = reshape(snd_IMS, (/idim, jdim/))        
         error = nf90_put_var(ncid, id_IMSsnd, dum2d, dIMS_strt, dIMS_end)
-        call netcdf_err(error, 'writing IMSswe record')
+        call netcdf_err(error, 'writing IMSsnd record')
 
 
         deallocate(x_data, y_data)
