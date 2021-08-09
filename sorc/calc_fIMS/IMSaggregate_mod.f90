@@ -33,12 +33,14 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
 
         integer             :: ierr     
         character(len=250)  :: IMS_inp_file, IMS_inp_file_indices 
-        character(len=250)  :: IMS_out_file, vegt_inp_file
+        character(len=250)  :: IMS_out_file, fcast_inp_file
         character(len=1)    :: tile_str
         character(len=3)    :: resl_str
-        real                :: sncov_IMS(lensfc)  ! IMS fractional snow cover in model grid
-        real                :: swe_IMS(lensfc)    ! SWE derived from sncov_IMS, on model grid
-        real                :: vetfcs(lensfc)     ! model vegetation type
+        real                :: sncov_IMS(lensfc)   ! IMS fractional snow cover in model grid
+        real                :: swe_IMS(lensfc)     ! SWE derived from sncov_IMS, on model grid
+        real                :: vtype(lensfc)       ! model vegetation type
+        real                :: landmask(lensfc)    
+        real                :: swefcs(lensfc), sndfcs(lensfc), denfsc(lensfc) ! forecast SWE, SND, and density
 
         integer, parameter :: printrank = 4 
 
@@ -51,11 +53,11 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         write(tile_str, '(i1.1)') (myrank+1) ! assuming <10 tiles.
         write(resl_str, "(i3)") idim
 
-        ! read vegetation type
-        vegt_inp_file = './C'//trim(adjustl(resl_str))//'.vegetation_type.tile'//tile_str//'.nc'
-        if (myrank==printrank) print *, 'reading model backgroundfile for veg type', trim(vegt_inp_file) 
+        ! read forecast file
+        fcast_inp_file = "./fnbgsi.00" // tile_str
+        if (myrank==printrank) print *, 'reading model backgroundfile for veg type', trim(fcast_inp_file)
                                      
-        call read_vegtype(vegt_inp_file, lensfc, vetfcs)
+        call read_fcst(fcast_inp_file, lensfc, vtype, swefcs, sndfcs, landmask)
 
         ! read IMS obs, and indexes, map to model grid
         IMS_inp_file = trim(IMS_snowcover_path)//"IMS.SNCOV."//date_str//".nc"                 
@@ -70,7 +72,7 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
 
         if (myrank==printrank) print*,'read in sncov, converting to snow depth' 
  
-        call calcSWEfromSCFnoah(sncov_IMS, vetfcs, lensfc, swe_IMS)
+        call calcSWEfromSCFnoah(sncov_IMS, vtype, lensfc, swe_IMS)
 
 !=============================================================================================
 ! 2.  Write outputs
@@ -216,44 +218,48 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
 !====================================
 ! read in vegetation file from a UFS surface restart 
 
- subroutine read_vegtype(vegt_inp_path, lensfc, vetfcs) 
-    
+ subroutine read_fcast(fcst_inp_path, lensfc, vetfcs, swefcs, sndfcs, landmask)
+
         implicit none
 
         include "mpif.h"
-        
-        character(len=*), intent(in)      :: vegt_inp_path
-        integer, intent(in)               :: lensfc
-        real, intent(out)                 :: vetfcs(lensfc) 
 
-        integer                   :: error, ncid
+        character(len=*), intent(in)      :: fcst_inp_path
+        integer, intent(in)               :: lensfc
+        real, intent(out)                 :: vetfcs(lensfc), swefcs(lensfc)
+        real, intent(out)                 :: sndfcs(lensfc),landmask(lensfc)
+
+        integer                   :: error, ncid, i
         integer                   :: idim, jdim, id_dim
         integer                   :: id_var
 
         real(kind=8), allocatable :: dummy(:,:)
         logical                   :: file_exists
+        real                      :: slmask(lensfc)
 
-        inquire(file=trim(vegt_inp_path), exist=file_exists)
+        integer, parameter        :: veg_type_landice = 15
 
-        if (.not. file_exists) then 
-                print *, 'read_vegtype error,file does not exist', &   
-                        trim(vegt_inp_path) , ' exiting'
+        inquire(file=trim(fcst_inp_path), exist=file_exists)
+
+        if (.not. file_exists) then
+                print *, 'read_fcast error,file does not exist', &
+                        trim(fcst_inp_path) , ' exiting'
                 call mpi_abort(mpi_comm_world, 10)
         endif
-                
 
-        error=nf90_open(trim(vegt_inp_path), nf90_nowrite,ncid)
-        call netcdf_err(error, 'opening file: '//trim(vegt_inp_path) )
 
-        error=nf90_inq_dimid(ncid, 'nx', id_dim)
-        call netcdf_err(error, 'reading nx' )
+        error=nf90_open(trim(fcst_inp_path), nf90_nowrite,ncid)
+        call netcdf_err(error, 'opening file: '//trim(fcst_inp_path) )
+
+        error=nf90_inq_dimid(ncid, 'xaxis_1', id_dim)
+        call netcdf_err(error, 'reading xaxis_1' )
         error=nf90_inquire_dimension(ncid,id_dim,len=idim)
-        call netcdf_err(error, 'reading nx' )
+        call netcdf_err(error, 'reading xaxis_1' )
 
-        error=nf90_inq_dimid(ncid, 'ny', id_dim)
-        call netcdf_err(error, 'reading ny' )
+        error=nf90_inq_dimid(ncid, 'yaxis_1', id_dim)
+        call netcdf_err(error, 'reading yaxis_1' )
         error=nf90_inquire_dimension(ncid,id_dim,len=jdim)
-        call netcdf_err(error, 'reading ny' )
+        call netcdf_err(error, 'reading yaxis_1' )
 
         if ((idim*jdim) /= lensfc) then
         print*,'fatal error reading veg type: dimensions wrong.'
@@ -262,17 +268,52 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
 
         allocate(dummy(idim,jdim))
 
-        error=nf90_inq_varid(ncid, "vegetation_type", id_var)
-        call netcdf_err(error, 'reading vegetation type id' )
+        ! vegetation type
+        error=nf90_inq_varid(ncid, "vtype", id_var)
+        call netcdf_err(error, 'reading vtype id' )
         error=nf90_get_var(ncid, id_var, dummy)
-        call netcdf_err(error, 'reading vegetation type' )
-        vetfcs = reshape(dummy, (/lensfc/))    
+        call netcdf_err(error, 'reading vtype' )
+        vetfcs = reshape(dummy, (/lensfc/))
+
+        ! Snow water equivalent
+        error=nf90_inq_varid(ncid, "sheleg", id_var)
+        call netcdf_err(error, 'reading sheleg id' )
+        error=nf90_get_var(ncid, id_var, dummy)
+        call netcdf_err(error, 'reading sheleg' )
+        swefcs = reshape(dummy, (/lensfc/))
+
+        ! snow depth
+        error=nf90_inq_varid(ncid, "snwdph", id_var)
+        call netcdf_err(error, 'reading snwdph id' )
+        error=nf90_get_var(ncid, id_var, dummy)
+        call netcdf_err(error, 'reading snwdph' )
+        sndfcs = reshape(dummy, (/lensfc/))
+
+        ! land mask
+        error=nf90_inq_varid(ncid, "slmsk", id_var)
+        call netcdf_err(error, 'reading slmsk id' )
+        error=nf90_get_var(ncid, id_var, dummy)
+        call netcdf_err(error, 'reading slmsk' )
+        slmask = reshape(dummy, (/lensfc/))
 
         deallocate(dummy)
 
         error = nf90_close(ncid)
-    
- end subroutine read_vegtype
+
+        ! slmsk in file is: 0 - ocean, 1 - land, 2 -seaice
+        ! convert to: integer with  0 - glacier or non-land, 1 - non-glacier covered land
+
+        do i = 1, lensfc
+           ! if land, but not land ice, set mask to 1.
+           if ( (nint(slmask(i)) == 1 ) .and.   &
+                ( nint(vetfcs(i)) /=  veg_type_landice  )) then
+                landmask(i) = 1
+           else
+                landmask(i) = 0
+           endif
+        enddo
+
+ end subroutine read_fcast
 
 !====================================
 ! read in the IMS observations and  associated index file, then 
