@@ -80,7 +80,8 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         if (myrank==printrank) print*,'read in sncov, converting to snow depth' 
 
         ! calculate SWE from IMS snow cover fraction (using model relationship) 
-        call calcSWEfromSCFnoah(sncov_IMS, vtype, lensfc, swe_IMS)
+        ! no value is calculated if both IMS and model have 100% snow cover
+        call calcSWE_noah(sncov_IMS, vtype, swefcs, lensfc, swe_IMS)
 
         ! calculate snow depth from IMS SWE, using model density
         do i =1,lensfc 
@@ -495,11 +496,11 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
 ! calculate SWE from fractional snow cover, using the noah model relationship 
 ! uses empirical inversion of snow depletion curve in the model 
 
- subroutine calcSWEfromSCFnoah(sncov_IMS, vetfcs_in, lensfc, swe_IMS_at_grid)
+ subroutine calcSWE_noah(sncov_IMS, vetfcs_in, swefcs, lensfc, swe_IMS_at_grid)
         
         implicit none
         !
-        real, intent(in)        :: sncov_IMS(lensfc),  vetfcs_in(lensfc)
+        real, intent(in)        :: sncov_IMS(lensfc),  vetfcs_in(lensfc), swefcs(lensfc)
         integer, intent(in)     :: lensfc
         !snup_array is the swe (mm) at which scf reaches 100% 
         real, intent(out)       :: swe_IMS_at_grid(lensfc)
@@ -537,6 +538,9 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
                     stop
                 endif
 
+                ! if model and IMS both have 100% snow cover, don't convert IMS to a snow depth
+                if ( (swefcs(indx) >= snup)  .and. (sncov_IMS(indx) >= 1.0 ) ) cycle 
+
                 if (sncov_IMS(indx) >= 1.0) then
                     rsnow = 1.
                 elseif (sncov_IMS(indx) < 0.001) then
@@ -550,7 +554,7 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         end do  
         return
     
- end subroutine calcSWEfromSCFnoah
+ end subroutine calcSWE_noah
 
 !====================================
 ! project IMS input onto model grid
