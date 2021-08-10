@@ -12,8 +12,12 @@ real, parameter    ::  nodata_tol = 0.1
 contains
 
 !====================================
-! main routine to read in inputs, calculate IMS snow cover fraction, and IMS SWE, 
-! write out results on model grid.
+! main routine to read in inputs, calculate IMS snow cover fraction, IMS SWE, 
+! then IMS SND, and write out results on model grid.
+! SWE is calculated using the model relationship. 
+! SD is calculated using the forecast snow density. 
+! SD is QC'ed out where both model and obs have 100% snow cover 
+! (since can get no info from IMS snow cover in this case)
 
 subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, & 
                                 date_str,IMS_snowcover_path, IMS_indexes_path)
@@ -43,7 +47,7 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         integer             :: landmask(lensfc)    
         real                :: swefcs(lensfc), sndfcs(lensfc), denfcs(lensfc) ! forecast SWE, SND, and density
 
-        integer, parameter :: printrank = 4 
+        integer, parameter :: printrank = 4
 
 
 !=============================================================================================
@@ -80,7 +84,7 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
 
         ! calculate snow depth from IMS SWE, using model density
         do i =1,lensfc 
-           if  ( abs(sncov_IMS(i) -nodata_real) > nodata_tol ) then 
+           if  ( abs( swe_IMS(i) -nodata_real ) > nodata_tol ) then 
                 snd_IMS(i) = swe_IMS(i)/denfcs(i) 
            else
                 snd_IMS(i) = nodata_real 
@@ -357,10 +361,10 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
                 ! mean density over snow-covered land
                 dens_mean = sum(density, mask = (landmask==1 .and. snd>0.01 )) &
                          / count (landmask==1 .and. snd> 0.01)
-                print *, 'mean density on tile ', rank,': ', dens_mean
+                print *, 'mean density on rank ', rank,': ', dens_mean
         else
                 dens_mean = 0.1  ! default value if have no snow in tile
-                print *, 'no snow on tile ', rank, ' using default density ', dens_mean
+                print *, 'no snow on rank ', rank, ' using default density ', dens_mean
         endif
 
         ! for grid cells with no valid density, fill in the average snodens
