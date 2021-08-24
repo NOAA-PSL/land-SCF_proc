@@ -49,6 +49,8 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
 
         integer, parameter :: printrank = 4
 
+        character(len=10)  :: IMS_format = "netcdf"   ! netcdf or ascii
+
 
 !=============================================================================================
 ! 1. Read forecast info, and IMS data and indexes from file, then calculate SWE
@@ -67,14 +69,21 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         call calc_density(lensfc, landmask, swefcs, sndfcs, myrank, denfcs)
 
         ! read IMS obs, and indexes, map to model grid
-        IMS_inp_file = trim(IMS_snowcover_path)//"IMS.SNCOV."//date_str//".nc"                 
+        if(trim(IMS_format) .eq. "netcdf") then
+          IMS_inp_file = trim(IMS_snowcover_path)//"IMS.SNCOV."//date_str//".nc"                 
+        elseif(trim(IMS_format) .eq. "ascii") then
+          IMS_inp_file = trim(IMS_snowcover_path)//"ims2019350_4km_v1.3.asc"  
+        else
+          if (myrank==printrank) print *, 'unknown IMS format'
+          stop
+        endif 
         if (myrank==printrank) print *, 'reading IMS snow cover data from ', trim(IMS_inp_file) 
 
         IMS_inp_file_indices = trim(IMS_indexes_path)//"C"//trim(adjustl(resl_str))// &
                                                     ".IMS.Indices.tile"//tile_str//".nc"                       
         if (myrank==printrank) print *, 'reading IMS index file', trim(IMS_inp_file_indices) 
 
-        call read_IMS_onto_model_grid(IMS_inp_file, IMS_inp_file_indices, &
+        call read_IMS_onto_model_grid(IMS_inp_file, IMS_inp_file_indices, IMS_format, &
                                                     myrank, jdim, idim, sncov_IMS)
 
         if (myrank==printrank) print*,'read in sncov, converting to snow depth' 
@@ -377,14 +386,14 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
 ! read in the IMS observations and  associated index file, then 
 ! aggregate onto the model grid.
 
- subroutine read_IMS_onto_model_grid(inp_file, inp_file_indices, &
+ subroutine read_IMS_onto_model_grid(inp_file, inp_file_indices, IMS_format, &
                     myrank, n_lat, n_lon, sncov_IMS)
                     
         implicit none
     
         include 'mpif.h'                  
     
-        character(len=*), intent(in)   :: inp_file, inp_file_indices 
+        character(len=*), intent(in)   :: inp_file, inp_file_indices , IMS_format
         integer, intent(in)            :: myrank, n_lat, n_lon 
         real, intent(out)       :: sncov_IMS(n_lat * n_lon)     
     
@@ -404,32 +413,38 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
                         trim(inp_file) , ' exiting'
                 call mpi_abort(mpi_comm_world, 10)
         endif
+
+        if(trim(IMS_format) .eq. "netcdf") then
     
-        error=nf90_open(trim(inp_file),nf90_nowrite,ncid)
-        call netcdf_err(error, 'opening file: '//trim(inp_file) )
+          error=nf90_open(trim(inp_file),nf90_nowrite,ncid)
+          call netcdf_err(error, 'opening file: '//trim(inp_file) )
     
-        error=nf90_inq_dimid(ncid, 'lat', id_dim)
-        call netcdf_err(error, 'error reading dimension lat' )
+          error=nf90_inq_dimid(ncid, 'lat', id_dim)
+          call netcdf_err(error, 'error reading dimension lat' )
         
-        error=nf90_inquire_dimension(ncid,id_dim,len=dim_len_lat)
-        call netcdf_err(error, 'error reading size of dimension lat' )
+          error=nf90_inquire_dimension(ncid,id_dim,len=dim_len_lat)
+          call netcdf_err(error, 'error reading size of dimension lat' )
         
-        error=nf90_inq_dimid(ncid, 'lon', id_dim)
-        call netcdf_err(error, 'error reading dimension lon' )
+          error=nf90_inq_dimid(ncid, 'lon', id_dim)
+          call netcdf_err(error, 'error reading dimension lon' )
     
-        error=nf90_inquire_dimension(ncid,id_dim,len=dim_len_lon)
-        call netcdf_err(error, 'error reading size of dimension lon' )
+          error=nf90_inquire_dimension(ncid,id_dim,len=dim_len_lon)
+          call netcdf_err(error, 'error reading size of dimension lon' )
     
 
-        allocate(sncov_IMS_2d_full(dim_len_lon, dim_len_lat))   
+          allocate(sncov_IMS_2d_full(dim_len_lon, dim_len_lat))   
 
-        error=nf90_inq_varid(ncid, 'Band1', id_var)
-        call netcdf_err(error, 'error reading sncov id' )
-        error=nf90_get_var(ncid, id_var, sncov_IMS_2d_full, start = (/ 1, 1 /), &
+          error=nf90_inq_varid(ncid, 'Band1', id_var)
+          call netcdf_err(error, 'error reading sncov id' )
+          error=nf90_get_var(ncid, id_var, sncov_IMS_2d_full, start = (/ 1, 1 /), &
                                 count = (/ dim_len_lon, dim_len_lat/))
-        call netcdf_err(error, 'error reading sncov record' )
+          call netcdf_err(error, 'error reading sncov record' )
         
-        error = nf90_close(ncid)
+          error = nf90_close(ncid)
+
+        elseif(IMS_format .eq. "ascii") then
+
+        end if
 
         ! read index file for mapping IMS to model grid 
 
