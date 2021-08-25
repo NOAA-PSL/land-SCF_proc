@@ -12,12 +12,18 @@
  implicit none
 
  integer             :: idim, jdim
- character(len=10)   :: date_str ! yyyymmddhh
- character(len=500)  :: IMS_snowcover_path, IMS_index_path
+ character(len=8)    :: yyyymmdd
+ character(len=7)    :: jdate
+ character(len=200)  :: IMS_obs_path, IMS_ind_path, fcst_path
  logical             :: file_exists
  integer             :: io, ierr
 
- namelist/fIMS_nml/  idim, jdim, date_str, IMS_snowcover_path, IMS_index_path
+ namelist/fIMS_nml/  idim, jdim, yyyymmdd, jdate, IMS_obs_path, IMS_ind_path, fcst_path
+
+ ! default to current directory 
+ IMS_obs_path="./"
+ IMS_ind_path="./"
+ fcst_path="./"
 
  ! read namelist
  inquire(file='fims.nml', exist=file_exists)
@@ -31,6 +37,6 @@
  read (nml=fIMS_nml, iostat=ierr, unit=io) 
  close (io) 
 
- call calculate_IMS_fsca(idim, jdim, date_str, IMS_snowcover_path, IMS_index_path)
+ call calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate,IMS_obs_path, IMS_ind_path, fcst_path)
 
  end program driver_fIMS

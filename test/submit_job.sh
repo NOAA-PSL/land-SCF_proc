@@ -1,12 +1,13 @@
 #! /bin/sh -l
 
+# to-do: deal with JDAY
 IY=2019
 IM=12
 ID=15
 IH=18
 JDAY=350
 
-RES=48
+RES=768
 
 EXEC_DIR=/scratch2/BMC/gsienkf/Clara.Draper/gerrit-hera/snowDA/IMSobsproc_Mike/exec/
 
@@ -17,14 +18,16 @@ export SNOW_OBS_DIR=/scratch1/NCEPDEV/stmp2/Michael.Barlage/DA/IMSdata
 
 rm fims.nml
 
-DATE_STRING=$IY$JDAY
+JDATE=$IY$JDAY
+YYYYMMDD=$IY$IM$ID
 
 cat >> fims.nml << EOF
  &fIMS_nml
   idim=$RES, jdim=$RES,
-  date_str=$DATE_STRING,
-  IMS_SNOWCOVER_PATH="${SNOW_OBS_DIR}/IMS/", 
-  IMS_INDEX_PATH="/scratch2/NCEPDEV/land/Youlong.Xia/save/obs-product/ims/ims_index/"
+  jdate=$JDATE,
+  yyyymmdd=$YYYYMMDD,
+  IMS_OBS_PATH="${SNOW_OBS_DIR}/IMS/", 
+  IMS_IND_PATH="/scratch2/NCEPDEV/land/Youlong.Xia/save/obs-product/ims/ims_index/"
   / 
 EOF
 

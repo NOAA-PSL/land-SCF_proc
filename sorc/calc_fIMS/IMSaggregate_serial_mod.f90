@@ -19,13 +19,20 @@ contains
 ! SD is QC'ed out where both model and obs have 100% snow cover 
 ! (since can get no info from IMS snow cover in this case)
 
-subroutine calculate_IMS_fsca(idim, jdim, date_str, IMS_snowcover_path, IMS_index_path)
+subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, & 
+                                 IMS_ind_path, fcst_path)
                                                         
         implicit none
         
         integer, intent(in)            :: idim, jdim
-        character(len=10), intent(in)  :: date_str ! yyyyddd
-        character(len=*), intent(in)   :: IMS_snowcover_path, IMS_index_path
+        character(len=8), intent(in)  :: yyyymmdd
+        character(len=7), intent(in)  :: jdate
+        character(len=*), intent(in)   :: IMS_obs_path, IMS_ind_path, fcst_path
+
+        real                :: vtype(idim,jdim,6)       ! model vegetation type
+        integer             :: landmask(idim,jdim,6)
+        real                :: swefcs(idim,jdim,6), sndfcs(idim,jdim,6) ! forecast SWE, SND
+        real                :: denfcs(idim,jdim,6) ! forecast density
 
         character(len=250)  :: IMS_sncov_file
         real                :: IMS_sncov(idim,jdim,6)   ! IMS fractional snow cover in model grid
@@ -34,18 +41,21 @@ subroutine calculate_IMS_fsca(idim, jdim, date_str, IMS_snowcover_path, IMS_inde
 ! 1. Read forecast info, and IMS data and indexes from file, then calculate SWE
 !=============================================================================================
 
+
+        call  read_fcst(fcst_path, yyyymmdd, idim, jdim, vtype, swefcs, sndfcs, landmask)
+
         ! read IMS obs, and indexes, map to model grid
-        IMS_sncov_file = trim(IMS_snowcover_path)//"ims"//trim(date_str)//"_4km_v1.3.asc"  
+        IMS_sncov_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v1.3.asc"  
 
         print *, 'reading IMS snow cover data from ', trim(IMS_sncov_file) 
 
-        call read_IMS_onto_model_grid(IMS_sncov_file, IMS_index_path, jdim, idim, IMS_sncov)
+        call read_IMS_onto_model_grid(IMS_sncov_file, IMS_ind_path, jdim, idim, IMS_sncov)
 
 !=============================================================================================
 ! 2.  Write outputs
 !=============================================================================================
         
-        call write_fsca_outputs(idim, jdim, IMS_sncov) 
+        call write_fsca_outputs(idim, jdim, IMS_sncov,sndfcs)
 
         return
 
@@ -54,14 +64,15 @@ subroutine calculate_IMS_fsca(idim, jdim, date_str, IMS_snowcover_path, IMS_inde
 !====================================
 ! routine to write the output to file
 
- subroutine write_fsca_outputs(idim, jdim, IMS_sncov)
+ subroutine write_fsca_outputs(idim, jdim, IMS_sncov, IMS_snd)
 
       !------------------------------------------------------------------
       !------------------------------------------------------------------
       implicit none
 
       integer, intent(in)         :: idim, jdim
-      real, intent(in)            :: IMS_sncov(jdim,idim,6)
+      real, intent(in)            :: IMS_sncov(idim,jdim,6)
+      real, intent(in)            :: IMS_snd(idim,jdim,6)
 
       character(len=250)          :: output_file
       character(len=1)            :: tile_str
@@ -75,8 +86,7 @@ subroutine calculate_IMS_fsca(idim, jdim, date_str, IMS_snowcover_path, IMS_inde
       integer                     :: itile
  
       real(kind=4)                :: times
-      real(kind=4), allocatable   :: x_data(:), y_data(:)
-      real(kind=8), allocatable   :: dum2d(:,:)
+      real(kind=4)                :: xy_data(idim)
 
       do itile = 1, 6
 
@@ -135,27 +145,28 @@ subroutine calculate_IMS_fsca(idim, jdim, date_str, IMS_snowcover_path, IMS_inde
         error = nf90_put_att(ncid, id_IMScov, "units", "-")
         call netcdf_err(error, 'defining IMSfsca units' )
 
+        error = nf90_def_var(ncid, 'IMSsnd', nf90_double, dIMS_3d, id_IMSsnd)
+        call netcdf_err(error, 'defining IMSsnd' )
+        error = nf90_put_att(ncid, id_IMSsnd, "long_name", "IMS snow depth")
+        call netcdf_err(error, 'defining IMSsnd long name' )
+        error = nf90_put_att(ncid, id_IMSsnd, "units", "mm")
+        call netcdf_err(error, 'defining IMSsnd units' )
+
         error = nf90_enddef(ncid, header_buffer_val,4,0,4)
         call netcdf_err(error, 'defining header' )
 
-        allocate(x_data(idim))
         do i = 1, idim
-        x_data(i) = float(i)
-        enddo
-        allocate(y_data(jdim))
-        do i = 1, jdim
-        y_data(i) = float(i)
+        xy_data(i) = float(i)
         enddo
         times = 1.0
 
-        error = nf90_put_var( ncid, id_x, x_data)
+        error = nf90_put_var( ncid, id_x, xy_data)
         call netcdf_err(error, 'writing xaxis record' )
-        error = nf90_put_var( ncid, id_y, y_data)
+        error = nf90_put_var( ncid, id_y, xy_data)
         call netcdf_err(error, 'writing yaxis record' )
         error = nf90_put_var( ncid, id_time, times)
         call netcdf_err(error, 'writing time record' )
 
-        allocate(dum2d(idim,jdim))
         dIMS_strt(1:3) = 1
         dIMS_end(1) = idim
         dIMS_end(2) = jdim
@@ -164,14 +175,115 @@ subroutine calculate_IMS_fsca(idim, jdim, date_str, IMS_snowcover_path, IMS_inde
         error = nf90_put_var(ncid, id_IMScov, IMS_sncov(:,:,itile), dIMS_strt, dIMS_end)
         call netcdf_err(error, 'writing IMSfsca record')
 
-        deallocate(x_data, y_data)
-        deallocate(dum2d)
+        error = nf90_put_var(ncid, id_IMSsnd, IMS_snd(:,:,itile), dIMS_strt, dIMS_end)
+        call netcdf_err(error, 'writing IMSsnd record')
 
         error = nf90_close(ncid)
 
       end do
     
  end subroutine write_fsca_outputs
+
+!====================================
+! read in vegetation file from a UFS surface restart 
+
+ subroutine read_fcst(path, date_str, idim, jdim, vetfcs, swefcs, sndfcs, landmask)
+
+        implicit none
+        character(len=*), intent(in)      :: path
+        character(8), intent(in)          :: date_str
+        integer, intent(in)               :: idim, jdim
+        real, intent(out)                 :: vetfcs(idim,jdim,6), swefcs(idim,jdim,6)
+        real, intent(out)                 :: sndfcs(idim,jdim,6)
+        integer, intent(out)              :: landmask(idim,jdim,6)
+
+        integer                   :: error, ncid, i,j, t 
+        integer                   :: id_dim, id_var, idim_file
+        character                 :: tt
+        character(len=300)        :: fcst_file
+
+        real(kind=8)              :: dummy(idim,jdim)
+        logical                   :: file_exists
+
+        integer, parameter        :: veg_type_landice = 15
+
+        do t =1,6
+            ! read forecast file (note: hard-coded to 18 UTC)
+            write(tt, "(i1)") t
+            fcst_file = trim(path)//trim(date_str)// & 
+                                ".180000.sfc_data.tile"//tt//".nc"
+
+            print *, 'reading model backgroundfile:', trim(fcst_file)
+
+            inquire(file=trim(fcst_file), exist=file_exists)
+
+            if (.not. file_exists) then
+                    print *, 'read_fcst error,file does not exist', &
+                            trim(fcst_file) , ' exiting'
+                    stop
+            endif
+
+            error=nf90_open(trim(fcst_file), nf90_nowrite,ncid)
+            call netcdf_err(error, 'opening file: '//trim(fcst_file) )
+
+            ! check dimension 
+            error=nf90_inq_dimid(ncid, 'xaxis_1', id_dim)
+            call netcdf_err(error, 'reading xaxis_1' )
+            error=nf90_inquire_dimension(ncid,id_dim,len=idim_file)
+            call netcdf_err(error, 'reading xaxis_1' )
+
+            if ((idim_file) /= idim) then
+                print*,'fatal error reading fcst file: dimensions wrong.'
+                stop
+            endif
+
+            ! vegetation type
+            error=nf90_inq_varid(ncid, "vtype", id_var)
+            call netcdf_err(error, 'reading vtype id' )
+            error=nf90_get_var(ncid, id_var, dummy)
+            call netcdf_err(error, 'reading vtype' )
+            vetfcs(:,:,t) = dummy
+
+            ! Snow water equivalent
+            error=nf90_inq_varid(ncid, "sheleg", id_var)
+            call netcdf_err(error, 'reading sheleg id' )
+            error=nf90_get_var(ncid, id_var, dummy)
+            call netcdf_err(error, 'reading sheleg' )
+            swefcs(:,:,t) = dummy
+
+            ! snow depth
+            error=nf90_inq_varid(ncid, "snwdph", id_var)
+            call netcdf_err(error, 'reading snwdph id' )
+            error=nf90_get_var(ncid, id_var, dummy)
+            call netcdf_err(error, 'reading snwdph' )
+            sndfcs(:,:,t) = dummy
+
+            ! land mask
+            error=nf90_inq_varid(ncid, "slmsk", id_var)
+            call netcdf_err(error, 'reading slmsk id' )
+            error=nf90_get_var(ncid, id_var, dummy)
+            call netcdf_err(error, 'reading slmsk' )
+
+            ! slmsk in file is: 0 - ocean, 1 - land, 2 -seaice
+            ! convert to: integer with  0 - glacier or non-land, 1 - non-glacier covered land
+
+            do i = 1, idim 
+              do j = 1, jdim
+               ! if land, but not land ice, set mask to 1.
+               if ( (nint(dummy(i,j)) == 1 ) .and.   &
+                    ( nint(vetfcs(i,j,t)) /=  veg_type_landice  )) then
+                    landmask(i,j,t) = 1
+               else
+                    landmask(i,j,t) = 0
+               endif
+              enddo
+            enddo
+
+        error = nf90_close(ncid)
+
+    enddo
+
+ end subroutine read_fcst
 
 !====================================
 ! read in the IMS observations and  associated index file, then 
