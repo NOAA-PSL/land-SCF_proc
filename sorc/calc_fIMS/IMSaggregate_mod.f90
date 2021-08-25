@@ -405,6 +405,8 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         integer                :: dim_len_lat, dim_len_lon
         logical                :: file_exists
 
+        integer                :: icol, irow
+
         ! read IMS observations in
         inquire(file=trim(inp_file), exist=file_exists)
 
@@ -444,38 +446,91 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
 
         elseif(IMS_format .eq. "ascii") then
 
+          dim_len_lat = 6144
+          dim_len_lon = 6144
+          allocate(sncov_IMS_2d_full(dim_len_lat,dim_len_lon))   
+          
+          open(10, file=inp_file, form="formatted", status="old")
+          
+          do irow = 1, 30
+            read(10,*)     ! read ims ascii header
+          end do
+
+          do irow = 1, dim_len_lat
+            read(10,'(6144i1)') (sncov_IMS_2d_full(irow, icol), icol=1, dim_len_lon)
+          end do
+
         end if
 
         ! read index file for mapping IMS to model grid 
 
-        inquire(file=trim(inp_file_indices), exist=file_exists)
+        if(trim(IMS_format) .eq. "netcdf") then
+    
+          inquire(file=trim(inp_file_indices), exist=file_exists)
 
-        if (.not. file_exists) then
+          if (.not. file_exists) then
                 print *, 'observation_read_IMS_full error, index file does not exist', &
                         trim(inp_file_indices) , ' exiting'
                 call mpi_abort(mpi_comm_world, 10) 
-        endif
+          endif
     
-        error=nf90_open(trim(inp_file_indices),nf90_nowrite, ncid)
-        call netcdf_err(error, 'opening file: '//trim(inp_file_indices) )
+          error=nf90_open(trim(inp_file_indices),nf90_nowrite, ncid)
+          call netcdf_err(error, 'opening file: '//trim(inp_file_indices) )
     
-        error=nf90_inq_dimid(ncid, 'Indices', id_dim)
-        call netcdf_err(error, 'error reading dimension indices' )
+          error=nf90_inq_dimid(ncid, 'Indices', id_dim)
+          call netcdf_err(error, 'error reading dimension indices' )
     
-        error=nf90_inquire_dimension(ncid,id_dim,len=n_ind)
-        call netcdf_err(error, 'error reading size of dimension indices' )
+          error=nf90_inquire_dimension(ncid,id_dim,len=n_ind)
+          call netcdf_err(error, 'error reading size of dimension indices' )
 
-        allocate(data_grid_IMS_ind(n_ind,n_lon, n_lat))
+          allocate(data_grid_IMS_ind(n_ind,n_lon, n_lat))
 
-        error=nf90_inq_varid(ncid, 'IMS_Indices', id_var)
-        call netcdf_err(error, 'error reading sncov indices id' )
+          error=nf90_inq_varid(ncid, 'IMS_Indices', id_var)
+          call netcdf_err(error, 'error reading sncov indices id' )
 
-        error=nf90_get_var(ncid, id_var, data_grid_IMS_ind, start = (/ 1, 1, 1 /), &
+          error=nf90_get_var(ncid, id_var, data_grid_IMS_ind, start = (/ 1, 1, 1 /), &
                                 count = (/ n_ind, n_lon, n_lat/))
-        call netcdf_err(error, 'error reading sncov indices' )
+          call netcdf_err(error, 'error reading sncov indices' )
     
-        error = nf90_close(ncid)
+          error = nf90_close(ncid)
    
+        elseif(IMS_format .eq. "ascii") then
+
+          inquire(file=trim(inp_file_indices), exist=file_exists)
+
+          if (.not. file_exists) then
+            print *, 'observation_read_IMS_full error, index file does not exist', &
+                   trim(inp_file_indices) , ' exiting'
+            call mpi_abort(mpi_comm_world, 10) 
+          endif
+    
+          error=nf90_open(trim(inp_file_indices),nf90_nowrite, ncid)
+          call netcdf_err(error, 'opening file: '//trim(inp_file_indices) )
+    
+          allocate(data_grid_IMS_ind(dim_len_lat, dim_len_lon, 3))
+
+          error=nf90_inq_varid(ncid, 'tile', id_var)
+          call netcdf_err(error, 'error reading sncov indices id' )
+
+          error=nf90_get_var(ncid, id_var, data_grid_IMS_ind(:,:,1))
+          call netcdf_err(error, 'error reading sncov indices' )
+    
+          error=nf90_inq_varid(ncid, 'tile_i', id_var)
+          call netcdf_err(error, 'error reading sncov indices id' )
+
+          error=nf90_get_var(ncid, id_var, data_grid_IMS_ind(:,:,2))
+          call netcdf_err(error, 'error reading sncov indices' )
+    
+          error=nf90_inq_varid(ncid, 'tile_j', id_var)
+          call netcdf_err(error, 'error reading sncov indices id' )
+
+          error=nf90_get_var(ncid, id_var, data_grid_IMS_ind(:,:,3))
+          call netcdf_err(error, 'error reading sncov indices' )
+    
+          error = nf90_close(ncid)
+   
+        end if
+
         ! IMS codes: 0 - outside range,
         !          : 1 - sea
         !          : 2 - land, no snow 
@@ -494,12 +549,17 @@ subroutine calculate_IMS_fsca(num_tiles, myrank, idim, jdim, lensfc, &
         !where(sncov_IMS_2d_full /= 4) sncov_IMS_2d_full = 0
         !where(sncov_IMS_2d_full == 4) sncov_IMS_2d_full = 1
         
-        call resample_to_model_tiles_intrp(sncov_IMS_2d_full, data_grid_IMS_ind, &
-                                           dim_len_lat, dim_len_lon, n_lat, n_lon, n_ind, &
-                                           grid_dat)
+        if(trim(IMS_format) .eq. "netcdf") then
+          call resample_to_model_tiles_intrp(sncov_IMS_2d_full, data_grid_IMS_ind, &
+                                             dim_len_lat, dim_len_lon, n_lat, n_lon, n_ind, &
+                                             grid_dat)
     
-        sncov_IMS = reshape(grid_dat, (/n_lat * n_lon/))
+          sncov_IMS = reshape(grid_dat, (/n_lat * n_lon/))
     
+        elseif(IMS_format .eq. "ascii") then
+
+        end if
+
         deallocate(sncov_IMS_2d_full)
         deallocate(data_grid_IMS_ind)
 
