@@ -37,6 +37,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         real                :: sweIMS(idim,jdim,6) ! SWE derived from scfIMS, on model grid
         real                :: sndIMS(idim,jdim,6) ! snow depth derived from scfIMS, on model grid
         character(len=250)  :: IMS_obs_file
+        integer             :: i,j,t
 
 !=============================================================================================
 ! 1. Read forecast info, and IMS data and indexes from file, then calculate SWE
@@ -57,11 +58,24 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         ! no value is calculated if both IMS and model have 100% snow cover
         call calcSWE_noah(scfIMS, vtype, swefcs, idim, jdim, sweIMS)
 
+        ! calculate snow depth from IMS SWE, using model density
+        do t=1,6
+          do i=1,idim
+            do j=1,jdim 
+              if  ( abs( sweIMS(i,j,t) -nodata_real ) > nodata_tol ) then
+                sndIMS(i,j,t) = sweIMS(i,j,t)/denfcs(i,j,t)
+              else
+                sndIMS(i,j,t) = nodata_real
+              endif
+            enddo
+          enddo
+        enddo
+
 !=============================================================================================
 ! 2.  Write outputs
 !=============================================================================================
         
-        call write_fsca_outputs(idim, jdim, scfIMS,sndfcs)
+        call write_fsca_outputs(idim, jdim, scfIMS,sndIMS)
 
         return
 
