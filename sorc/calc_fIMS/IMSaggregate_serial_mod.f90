@@ -499,14 +499,14 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! calculate SWE from fractional snow cover, using the noah model relationship 
 ! uses empirical inversion of snow depletion curve in the model 
 
- subroutine calcSWE_noah(scfIMS, vetfcs_in, swefcs, idim, jdim, swe_IMS_at_grid)
+ subroutine calcSWE_noah(scfIMS, vetfcs_in, swefcs, idim, jdim, sweIMS)
         
         implicit none
         !
         integer, intent(in)     :: idim,jdim
         real, intent(in)        :: scfIMS(idim,jdim,6),  vetfcs_in(idim,jdim,6)
         real, intent(in)        :: swefcs(idim,jdim,6)
-        real, intent(out)       :: swe_IMS_at_grid(idim,jdim,6)
+        real, intent(out)       :: sweIMS(idim,jdim,6)
         
         integer            :: vetfcs(idim,jdim,6)
         !snup_array is the swe (mm) at which scf reaches 100% 
@@ -515,7 +515,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
 
         !fill background values to nan (to differentiate those that don't have value)
-        swe_IMS_at_grid = nodata_real
+        sweIMS = nodata_real
    
         ! note: this is an empirical inversion of   snfrac rotuine in noah 
         !  should really have a land model check in here. 
@@ -556,7 +556,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
                         rsnow = min(log(1. - scfIMS(i,j,t)) / salp, 1.0) 
                     endif  
                     ! return swe in mm 
-                    swe_IMS_at_grid(i,j,t) = rsnow * snup * 1000. !  mm
+                    sweIMS(i,j,t) = rsnow * snup * 1000. !  mm
                 endif
             enddo  
           enddo  
