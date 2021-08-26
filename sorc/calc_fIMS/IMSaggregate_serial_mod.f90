@@ -3,7 +3,7 @@ module IMSaggregate_mod
 use netcdf
 
 private
-public calculate_IMS_fsca
+public calculate_scfIMS
 
 real, parameter    ::  nodata_real = -999. 
 integer, parameter ::  nodata_int = -999
@@ -19,7 +19,7 @@ contains
 ! SD is QC'ed out where both model and obs have 100% snow cover 
 ! (since can get no info from IMS snow cover in this case)
 
-subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, & 
+subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, & 
                                  IMS_ind_path, fcst_path)
                                                         
         implicit none
@@ -33,9 +33,10 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         integer             :: landmask(idim,jdim,6)
         real                :: swefcs(idim,jdim,6), sndfcs(idim,jdim,6) ! forecast SWE, SND
         real                :: denfcs(idim,jdim,6) ! forecast density
-
-        character(len=250)  :: IMS_sncov_file
-        real                :: IMS_sncov(idim,jdim,6)   ! IMS fractional snow cover in model grid
+        real                :: scfIMS(idim,jdim,6) ! IMS snow cover fraction, on model grid
+        real                :: sweIMS(idim,jdim,6) ! SWE derived from scfIMS, on model grid
+        real                :: sndIMS(idim,jdim,6) ! snow depth derived from scfIMS, on model grid
+        character(len=250)  :: IMS_obs_file
 
 !=============================================================================================
 ! 1. Read forecast info, and IMS data and indexes from file, then calculate SWE
@@ -46,34 +47,38 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         call calc_density(idim, jdim, landmask, swefcs, sndfcs, denfcs)
 
         ! read IMS obs, and indexes, map to model grid
-        IMS_sncov_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v1.3.asc"  
+        IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v1.3.asc"  
 
-        print *, 'reading IMS snow cover data from ', trim(IMS_sncov_file) 
+        print *, 'reading IMS snow cover data from ', trim(IMS_obs_file) 
 
-        call read_IMS_onto_model_grid(IMS_sncov_file, IMS_ind_path, jdim, idim, IMS_sncov)
+        call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, jdim, idim, scfIMS)
+
+        ! calculate SWE from IMS snow cover fraction (using model relationship)
+        ! no value is calculated if both IMS and model have 100% snow cover
+        call calcSWE_noah(scfIMS, vtype, swefcs, idim, jdim, sweIMS)
 
 !=============================================================================================
 ! 2.  Write outputs
 !=============================================================================================
         
-        call write_fsca_outputs(idim, jdim, IMS_sncov,sndfcs)
+        call write_fsca_outputs(idim, jdim, scfIMS,sndfcs)
 
         return
 
- end subroutine calculate_IMS_fsca
+ end subroutine calculate_scfIMS
 
 !====================================
 ! routine to write the output to file
 
- subroutine write_fsca_outputs(idim, jdim, IMS_sncov, IMS_snd)
+ subroutine write_fsca_outputs(idim, jdim, scfIMS, sndIMS)
 
       !------------------------------------------------------------------
       !------------------------------------------------------------------
       implicit none
 
       integer, intent(in)         :: idim, jdim
-      real, intent(in)            :: IMS_sncov(idim,jdim,6)
-      real, intent(in)            :: IMS_snd(idim,jdim,6)
+      real, intent(in)            :: scfIMS(idim,jdim,6)
+      real, intent(in)            :: sndIMS(idim,jdim,6)
 
       character(len=250)          :: output_file
       character(len=1)            :: tile_str
@@ -83,7 +88,7 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
       integer                     :: error, i, ncid
       integer                     :: dim_x, dim_y, dim_time
       integer                     :: id_x, id_y, id_time
-      integer                     :: id_IMScov, id_IMSsnd 
+      integer                     :: id_scfIMS, id_sndIMS 
       integer                     :: itile
  
       real(kind=4)                :: times
@@ -139,18 +144,18 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         dIMS_3d(2) = dim_y
         dIMS_3d(3) = dim_time
 
-        error = nf90_def_var(ncid, 'IMSfsca', nf90_double, dIMS_3d, id_IMScov)
+        error = nf90_def_var(ncid, 'IMSfsca', nf90_double, dIMS_3d, id_scfIMS)
         call netcdf_err(error, 'defining IMSfsca' )
-        error = nf90_put_att(ncid, id_IMScov, "long_name", "IMS fractional snow covered area")
+        error = nf90_put_att(ncid, id_scfIMS, "long_name", "IMS fractional snow covered area")
         call netcdf_err(error, 'defining IMSfsca long name' )
-        error = nf90_put_att(ncid, id_IMScov, "units", "-")
+        error = nf90_put_att(ncid, id_scfIMS, "units", "-")
         call netcdf_err(error, 'defining IMSfsca units' )
 
-        error = nf90_def_var(ncid, 'IMSsnd', nf90_double, dIMS_3d, id_IMSsnd)
+        error = nf90_def_var(ncid, 'IMSsnd', nf90_double, dIMS_3d, id_sndIMS)
         call netcdf_err(error, 'defining IMSsnd' )
-        error = nf90_put_att(ncid, id_IMSsnd, "long_name", "IMS snow depth")
+        error = nf90_put_att(ncid, id_sndIMS, "long_name", "IMS snow depth")
         call netcdf_err(error, 'defining IMSsnd long name' )
-        error = nf90_put_att(ncid, id_IMSsnd, "units", "mm")
+        error = nf90_put_att(ncid, id_sndIMS, "units", "mm")
         call netcdf_err(error, 'defining IMSsnd units' )
 
         error = nf90_enddef(ncid, header_buffer_val,4,0,4)
@@ -173,10 +178,10 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         dIMS_end(2) = jdim
         dIMS_end(3) = 1
         
-        error = nf90_put_var(ncid, id_IMScov, IMS_sncov(:,:,itile), dIMS_strt, dIMS_end)
+        error = nf90_put_var(ncid, id_scfIMS, scfIMS(:,:,itile), dIMS_strt, dIMS_end)
         call netcdf_err(error, 'writing IMSfsca record')
 
-        error = nf90_put_var(ncid, id_IMSsnd, IMS_snd(:,:,itile), dIMS_strt, dIMS_end)
+        error = nf90_put_var(ncid, id_sndIMS, sndIMS(:,:,itile), dIMS_strt, dIMS_end)
         call netcdf_err(error, 'writing IMSsnd record')
 
         error = nf90_close(ncid)
@@ -290,14 +295,14 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! read in the IMS observations and  associated index file, then 
 ! aggregate onto the model grid.
 
- subroutine read_IMS_onto_model_grid(IMS_sncov_file, IMS_index_path, &
-                    jdim, idim, IMS_sncov)
+ subroutine read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, &
+                    jdim, idim, scfIMS)
                     
         implicit none
     
-        character(len=*), intent(in)   :: IMS_sncov_file, IMS_index_path
+        character(len=*), intent(in)   :: IMS_obs_file, IMS_ind_path
         integer, intent(in)            :: jdim, idim 
-        real, intent(out)              :: IMS_sncov(jdim,idim,6)     
+        real, intent(out)              :: scfIMS(jdim,idim,6)     
     
         integer, allocatable    :: IMS_flag(:,:)   
         integer, allocatable    :: IMS_index(:,:,:)
@@ -307,16 +312,16 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         integer                :: i_ims, j_ims, itile, tile, tile_i, tile_j
         logical                :: file_exists
         character(len=3)       :: resl_str
-        character(len=250)     :: IMS_index_file
+        character(len=250)     :: IMS_ind_file
 
         integer                :: icol, irow
 
         ! read IMS observations in
-        inquire(file=trim(IMS_sncov_file), exist=file_exists)
+        inquire(file=trim(IMS_obs_file), exist=file_exists)
 
         if (.not. file_exists) then
            print *, 'observation_read_IMS_full error,file does not exist', &
-                        trim(IMS_sncov_file) , ' exiting'
+                        trim(IMS_obs_file) , ' exiting'
            stop
         endif
 
@@ -324,7 +329,7 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         j_ims = 6144
         allocate(IMS_flag(j_ims, i_ims))   
           
-        open(10, file=IMS_sncov_file, form="formatted", status="old")
+        open(10, file=IMS_obs_file, form="formatted", status="old")
           
         do irow = 1, 30
           read(10,*)     ! read ims ascii header
@@ -351,19 +356,19 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
         write(resl_str, "(i3)") idim
 
-        IMS_index_file = trim(IMS_index_path)//"fv3_mapping_C"//trim(adjustl(resl_str))//".nc"                       
-        print *, 'reading IMS index file', trim(IMS_index_file) 
+        IMS_ind_file = trim(IMS_ind_path)//"fv3_mapping_C"//trim(adjustl(resl_str))//".nc"                       
+        print *, 'reading IMS index file', trim(IMS_ind_file) 
 
-        inquire(file=trim(IMS_index_file), exist=file_exists)
+        inquire(file=trim(IMS_ind_file), exist=file_exists)
 
         if (.not. file_exists) then
           print *, 'observation_read_IMS_full error, index file does not exist', &
-                 trim(IMS_index_file) , ' exiting'
+                 trim(IMS_ind_file) , ' exiting'
           stop
         endif
     
-        error=nf90_open(trim(IMS_index_file),nf90_nowrite, ncid)
-        call netcdf_err(error, 'opening file: '//trim(IMS_index_file) )
+        error=nf90_open(trim(IMS_ind_file),nf90_nowrite, ncid)
+        call netcdf_err(error, 'opening file: '//trim(IMS_ind_file) )
     
         allocate(IMS_index(j_ims, i_ims, 3))
 
@@ -391,7 +396,7 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
         land_points = 0
         snow_points = 0
-        IMS_sncov = nodata_real
+        scfIMS = nodata_real
 
         do irow=1, j_ims
           do icol=1, i_ims
@@ -408,7 +413,7 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
           end do
         end do
 
-        where(land_points > 0) IMS_sncov = snow_points/land_points
+        where(land_points > 0) scfIMS = snow_points/land_points
     
         deallocate(IMS_flag)
         deallocate(IMS_index)
@@ -475,6 +480,76 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         where( snd <= 0.01 ) density = dens_mean
 
  end subroutine calc_density
+
+!====================================
+! calculate SWE from fractional snow cover, using the noah model relationship 
+! uses empirical inversion of snow depletion curve in the model 
+
+ subroutine calcSWE_noah(scfIMS, vetfcs_in, swefcs, idim, jdim, swe_IMS_at_grid)
+        
+        implicit none
+        !
+        integer, intent(in)     :: idim,jdim
+        real, intent(in)        :: scfIMS(idim,jdim,6),  vetfcs_in(idim,jdim,6)
+        real, intent(in)        :: swefcs(idim,jdim,6)
+        real, intent(out)       :: swe_IMS_at_grid(idim,jdim,6)
+        
+        integer            :: vetfcs(idim,jdim,6)
+        !snup_array is the swe (mm) at which scf reaches 100% 
+        real               :: snupx(30), snup, salp, rsnow
+        integer            :: i,j,t,vtype_int
+
+
+        !fill background values to nan (to differentiate those that don't have value)
+        swe_IMS_at_grid = nodata_real
+   
+        ! note: this is an empirical inversion of   snfrac rotuine in noah 
+        !  should really have a land model check in here. 
+
+        !this is for the igbp veg classification scheme.
+        ! swe at which snow cover reaches 100%, in m
+        snupx = (/0.080, 0.080, 0.080, 0.080, 0.080, 0.020,     &
+                0.020, 0.060, 0.040, 0.020, 0.010, 0.020,                       &
+                0.020, 0.020, 0.013, 0.013, 0.010, 0.020,                       &
+                0.020, 0.020, 0.000, 0.000, 0.000, 0.000,                       &
+                0.000, 0.000, 0.000, 0.000, 0.000, 0.000/)
+    
+        salp = -4.0
+        vetfcs = nint(vetfcs_in)
+        ! this is done in the noaa code, but we don't want to create a value outside land
+        !where(vetfcs==0) vetfcs = 7 
+       
+        do t =1, 6 
+          do i = 1, idim 
+            do j = 1, jdim 
+          
+                if ( (abs(scfIMS(i,j,t) -nodata_real) > nodata_tol ) .and. & 
+                     (vetfcs(i,j,t)>0)  ) then
+                    snup = snupx(vetfcs(i,j,t))
+                    if (snup == 0.) then
+                        print*, " 0.0 snup value, check vegclasses", vetfcs(i,j,t)
+                        stop
+                    endif
+
+                    ! if model and IMS both have 100% snow cover, don't convert IMS to a snow depth
+                    if ( (swefcs(i,j,t) >= snup)  .and. (scfIMS(i,j,t) >= 1.0 ) ) cycle 
+
+                    if (scfIMS(i,j,t) >= 1.0) then
+                        rsnow = 1.
+                    elseif (scfIMS(i,j,t) < 0.001) then
+                        rsnow = 0.0 
+                    else
+                        rsnow = min(log(1. - scfIMS(i,j,t)) / salp, 1.0) 
+                    endif  
+                    ! return swe in mm 
+                    swe_IMS_at_grid(i,j,t) = rsnow * snup * 1000. !  mm
+                endif
+            enddo  
+          enddo  
+        enddo  
+        return
+    
+ end subroutine calcSWE_noah
 
  end module IMSaggregate_mod
  

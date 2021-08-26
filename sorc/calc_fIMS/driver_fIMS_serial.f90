@@ -6,8 +6,7 @@
 ! 
 ! Clara Draper, July 2021 (based on code from Tseganeh Gichamo, Youlong Xia)
 
-
- use IMSaggregate_mod
+ use IMSaggregate_mod, only: calculate_scfIMS
 
  implicit none
 
@@ -37,6 +36,6 @@
  read (nml=fIMS_nml, iostat=ierr, unit=io) 
  close (io) 
 
- call calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate,IMS_obs_path, IMS_ind_path, fcst_path)
+ call calculate_scfIMS(idim, jdim, yyyymmdd, jdate,IMS_obs_path, IMS_ind_path, fcst_path)
 
  end program driver_fIMS
