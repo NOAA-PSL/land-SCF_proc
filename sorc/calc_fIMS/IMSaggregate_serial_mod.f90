@@ -41,8 +41,9 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! 1. Read forecast info, and IMS data and indexes from file, then calculate SWE
 !=============================================================================================
 
-
         call  read_fcst(fcst_path, yyyymmdd, idim, jdim, vtype, swefcs, sndfcs, landmask)
+
+        call calc_density(idim, jdim, landmask, swefcs, sndfcs, denfcs)
 
         ! read IMS obs, and indexes, map to model grid
         IMS_sncov_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v1.3.asc"  
@@ -185,7 +186,7 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
  end subroutine write_fsca_outputs
 
 !====================================
-! read in vegetation file from a UFS surface restart 
+! read in required forecast fields from a UFS surface restart 
 
  subroutine read_fcst(path, date_str, idim, jdim, vetfcs, swefcs, sndfcs, landmask)
 
@@ -425,8 +426,6 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
     
         implicit none
     
-        include 'mpif.h'
-    
         integer, intent(in) :: err
         character(len=*), intent(in) :: string
         character(len=80) :: errmsg
@@ -436,10 +435,46 @@ subroutine calculate_IMS_fsca(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         print*,''
         print*,'fatal error: ', trim(string), ': ', trim(errmsg)
         print*,'stop.'
-        call mpi_abort(mpi_comm_world, 999)
-    
+        stop
+
         return
  end subroutine netcdf_err
+
+!====================================
+! calculate snow density from forecast fields.
+! density = SWE/SND where snow present. 
+!         = average from snow forecasts over land, where snow not present
+
+ subroutine calc_density(idim, jdim, landmask, swe, snd, density)
+
+       implicit none 
+
+       integer, intent(in) :: idim, jdim
+       integer, intent(in) :: landmask(idim,jdim,6)
+       real, intent(in)    :: swe(idim,jdim,6), snd(idim,jdim,6)
+       real, intent(out)   :: density(idim,jdim,6)
+
+       real :: dens_mean
+
+        ! density = swe/snd
+        density = swe/snd
+        where (density < 0.0001) density = 0.1
+
+        ! calculate mean density over land
+        if (count (landmask==1 .and. snd> 0.01) > 0) then
+                ! mean density over snow-covered land
+                dens_mean = sum(density, mask = (landmask==1 .and. snd>0.01 )) &
+                         / count (landmask==1 .and. snd> 0.01)
+                print *, 'mean density: ', dens_mean
+        else
+                dens_mean = 0.1  ! default value if have no snow 
+                print *, 'no snow, using default density: ', dens_mean
+        endif
+
+        ! for grid cells with no valid density, fill in the average snodens
+        where( snd <= 0.01 ) density = dens_mean
+
+ end subroutine calc_density
 
  end module IMSaggregate_mod
  
