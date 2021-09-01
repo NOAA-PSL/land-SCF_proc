@@ -1,6 +1,7 @@
  &fIMS_nml
-  idim=96, jdim=96,
-  date_str=2019121518,
-  IMS_SNOWCOVER_PATH="/scratch2/BMC/gsienkf/Tseganeh.Gichamo/SnowObs//IMS/", 
-  IMS_INDEXES_PATH="/scratch2/BMC/gsienkf/Tseganeh.Gichamo/SnowObs//IMS_INDEXES/"
+  idim=768, jdim=768,
+  jdate=2019350,
+  yyyymmdd=20191215,
+  IMS_OBS_PATH="/scratch1/NCEPDEV/stmp2/Michael.Barlage/DA/IMSdata/IMS/", 
+  IMS_IND_PATH="/scratch2/NCEPDEV/land/Youlong.Xia/save/obs-product/ims/ims_index/"
   / 
