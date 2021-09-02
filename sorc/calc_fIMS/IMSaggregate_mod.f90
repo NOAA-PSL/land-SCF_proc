@@ -75,16 +75,17 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! 2.  Write outputs
 !=============================================================================================
         
-        call write_fsca_outputs(idim, jdim, scfIMS,sndIMS)
+        !call write_fsca_outputs_2D(idim, jdim, scfIMS,sndIMS)
+        call write_fsca_outputs_vec(idim, jdim, yyyymmdd, scfIMS,sndIMS)
 
         return
 
  end subroutine calculate_scfIMS
 
 !====================================
-! routine to write the output to file
+! routine to write the output to file - 2D (one file per tile)
 
- subroutine write_fsca_outputs(idim, jdim, scfIMS, sndIMS)
+ subroutine write_fsca_outputs_2D(idim, jdim, scfIMS, sndIMS)
 
       !------------------------------------------------------------------
       !------------------------------------------------------------------
@@ -202,7 +203,103 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
       end do
     
- end subroutine write_fsca_outputs
+ end subroutine write_fsca_outputs_2D
+
+
+!====================================
+! routine to write the output to file - vector
+
+ subroutine write_fsca_outputs_vec(idim, jdim, date_str,scfIMS, sndIMS)
+
+    implicit none
+
+    integer, intent(in)         :: idim, jdim
+    character(len=8), intent(in)  :: date_str
+    real, intent(in)            :: scfIMS(idim,jdim,6)
+    real, intent(in)            :: sndIMS(idim,jdim,6)
+
+    character(len=250)          :: output_file
+    !integer                     :: fsize=65536, inital=0
+    integer                     :: header_buffer_val = 16384
+    integer                     :: i,j,t,n, nobs
+    integer                     :: error, ncid
+    integer                     :: id_scfIMS, id_sndIMS , id_obs
+    real, allocatable           :: data_vec(:)
+ 
+
+    output_file = "./IMSfSCA."//date_str//".nc"
+    print*,'writing output to ',trim(output_file) 
+    
+    !--- create the file
+    !error = nf90_create(output_file, ior(nf90_netcdf4,nf90_classic_model), ncid, initialsize=inital, chunksize=fsize)
+    error = nf90_create(output_file, ior(nf90_netcdf4,nf90_classic_model), ncid)
+    call netcdf_err(error, 'creating file='//trim(output_file) )
+
+    ! collect obs
+    ! note: writing out all scf ovs. snd will be missing for many locations 
+    !       since it is removed if both model and ovs have scf==1
+    nobs = count (abs(scfIMS -nodata_real) > nodata_tol)
+    print *, 'writing out', nobs, ' observations'
+
+    allocate(data_vec(nobs)) 
+
+    !--- define dimension
+    error = nf90_def_dim(ncid, 'numobs', nobs, id_obs)
+    call netcdf_err(error, 'defining obs dimension' )
+ 
+    !--- define snow cover
+    error = nf90_def_var(ncid, 'IMSfsca', nf90_double, id_obs, id_scfIMS)
+    call netcdf_err(error, 'defining IMSfsca' )
+    error = nf90_put_att(ncid, id_scfIMS, "long_name", "IMS fractional snow covered area")
+    call netcdf_err(error, 'defining IMSfsca long name' )
+    error = nf90_put_att(ncid, id_scfIMS, "units", "-")
+    call netcdf_err(error, 'defining IMSfsca units' )
+
+    !--- define snow depth
+    error = nf90_def_var(ncid, 'IMSsnd', nf90_double, id_obs, id_sndIMS)
+    call netcdf_err(error, 'defining IMSsnd' )
+    error = nf90_put_att(ncid, id_sndIMS, "long_name", "IMS snow depth")
+    call netcdf_err(error, 'defining IMSsnd long name' )
+    error = nf90_put_att(ncid, id_sndIMS, "units", "mm")
+    call netcdf_err(error, 'defining IMSsnd units' )
+
+    error = nf90_enddef(ncid)
+    call netcdf_err(error, 'defining header' )
+
+    n=0
+    do t=1,6
+     do i=1,idim 
+      do j=1,jdim
+        if (abs(scfIMS(i,j,t) -nodata_real) > nodata_tol) then 
+                n=n+1
+                data_vec(n) = scfIMS(i,j,t)
+        endif
+      enddo 
+     enddo 
+    enddo
+
+    error = nf90_put_var(ncid, id_scfIMS, data_vec)
+    call netcdf_err(error, 'writing IMSfsca record')
+
+    n=0
+    do t=1,6
+     do i=1,idim 
+      do j=1,jdim
+        if (abs(sndIMS(i,j,t) -nodata_real) > nodata_tol) then 
+                n=n+1
+                data_vec(n) = sndIMS(i,j,t)
+        endif
+      enddo 
+     enddo 
+    enddo
+
+    error = nf90_put_var(ncid, id_sndIMS, data_vec)
+    call netcdf_err(error, 'writing IMSsnd record')
+
+    error = nf90_close(ncid)
+    deallocate(data_vec)
+    
+ end subroutine write_fsca_outputs_vec
 
 !====================================
 ! read in required forecast fields from a UFS surface restart 
