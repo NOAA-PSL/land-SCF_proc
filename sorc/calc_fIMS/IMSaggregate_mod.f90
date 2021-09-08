@@ -36,6 +36,8 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         real                :: scfIMS(idim,jdim,6) ! IMS snow cover fraction, on model grid
         real                :: sweIMS(idim,jdim,6) ! SWE derived from scfIMS, on model grid
         real                :: sndIMS(idim,jdim,6) ! snow depth derived from scfIMS, on model grid
+        real                :: lonFV3(idim,jdim,6) ! snow depth derived from scfIMS, on model grid
+        real                :: latFV3(idim,jdim,6) ! snow depth derived from scfIMS, on model grid
         character(len=250)  :: IMS_obs_file
         integer             :: i,j,t
 
@@ -52,7 +54,8 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
         print *, 'reading IMS snow cover data from ', trim(IMS_obs_file) 
 
-        call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, jdim, idim, scfIMS)
+        call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, jdim, idim,  & 
+                        lonFV3, latFV3, scfIMS)
 
         ! calculate SWE from IMS snow cover fraction (using model relationship)
         ! no value is calculated if both IMS and model have 100% snow cover
@@ -75,8 +78,8 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! 2.  Write outputs
 !=============================================================================================
         
-        !call write_fsca_outputs_2D(idim, jdim, scfIMS,sndIMS)
-        call write_fsca_outputs_vec(idim, jdim, yyyymmdd, scfIMS,sndIMS)
+        !call write_IMS_outputs_2D(idim, jdim, scfIMS,sndIMS)
+        call write_IMS_outputs_vec(idim, jdim, yyyymmdd, scfIMS, sndIMS, lonFV3, latFV3) 
 
         return
 
@@ -85,7 +88,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 !====================================
 ! routine to write the output to file - 2D (one file per tile)
 
- subroutine write_fsca_outputs_2D(idim, jdim, scfIMS, sndIMS)
+ subroutine write_IMS_outputs_2D(idim, jdim, scfIMS, sndIMS)
 
       !------------------------------------------------------------------
       !------------------------------------------------------------------
@@ -159,12 +162,12 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         dIMS_3d(2) = dim_y
         dIMS_3d(3) = dim_time
 
-        error = nf90_def_var(ncid, 'IMSfsca', nf90_double, dIMS_3d, id_scfIMS)
-        call netcdf_err(error, 'defining IMSfsca' )
-        error = nf90_put_att(ncid, id_scfIMS, "long_name", "IMS fractional snow covered area")
-        call netcdf_err(error, 'defining IMSfsca long name' )
+        error = nf90_def_var(ncid, 'IMSscf', nf90_double, dIMS_3d, id_scfIMS)
+        call netcdf_err(error, 'defining IMSscf' )
+        error = nf90_put_att(ncid, id_scfIMS, "long_name", "IMS snow covered fraction")
+        call netcdf_err(error, 'defining IMSscf long name' )
         error = nf90_put_att(ncid, id_scfIMS, "units", "-")
-        call netcdf_err(error, 'defining IMSfsca units' )
+        call netcdf_err(error, 'defining IMSscf units' )
 
         error = nf90_def_var(ncid, 'IMSsnd', nf90_double, dIMS_3d, id_sndIMS)
         call netcdf_err(error, 'defining IMSsnd' )
@@ -194,7 +197,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         dIMS_end(3) = 1
         
         error = nf90_put_var(ncid, id_scfIMS, scfIMS(:,:,itile), dIMS_strt, dIMS_end)
-        call netcdf_err(error, 'writing IMSfsca record')
+        call netcdf_err(error, 'writing IMSscf record')
 
         error = nf90_put_var(ncid, id_sndIMS, sndIMS(:,:,itile), dIMS_strt, dIMS_end)
         call netcdf_err(error, 'writing IMSsnd record')
@@ -203,13 +206,15 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
       end do
     
- end subroutine write_fsca_outputs_2D
+ end subroutine write_IMS_outputs_2D
 
 
 !====================================
 ! routine to write the output to file - vector
+! also writes out the model lat/lon for the grid cell that the data have been 
+! processed onto.
 
- subroutine write_fsca_outputs_vec(idim, jdim, date_str,scfIMS, sndIMS)
+ subroutine write_IMS_outputs_vec(idim, jdim, date_str,scfIMS, sndIMS, lonFV3, latFV3)
 
     implicit none
 
@@ -217,17 +222,21 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
     character(len=8), intent(in)  :: date_str
     real, intent(in)            :: scfIMS(idim,jdim,6)
     real, intent(in)            :: sndIMS(idim,jdim,6)
+    real, intent(in)            :: latFV3(idim,jdim,6)
+    real, intent(in)            :: lonFV3(idim,jdim,6)
 
     character(len=250)          :: output_file
-    !integer                     :: fsize=65536, inital=0
+    character(len=3)            :: resl_str
     integer                     :: header_buffer_val = 16384
     integer                     :: i,j,t,n, nobs
     integer                     :: error, ncid
-    integer                     :: id_scfIMS, id_sndIMS , id_obs
-    real, allocatable           :: data_vec(:)
+    integer                     :: id_scfIMS, id_sndIMS , id_obs, id_lon, id_lat
+    real, allocatable           :: data_vec(:,:)
+    real, allocatable           :: coor_vec(:,:)
  
+    write(resl_str, "(i3)") idim
 
-    output_file = "./IMSfSCA."//date_str//".nc"
+    output_file = "./IMSfSCA."//date_str//".C"//trim(adjustl(resl_str))//".nc"
     print*,'writing output to ',trim(output_file) 
     
     !--- create the file
@@ -241,19 +250,32 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
     nobs = count (abs(scfIMS -nodata_real) > nodata_tol)
     print *, 'writing out', nobs, ' observations'
 
-    allocate(data_vec(nobs)) 
+    allocate(data_vec(2,nobs)) 
+    allocate(coor_vec(2,nobs)) 
 
     !--- define dimension
     error = nf90_def_dim(ncid, 'numobs', nobs, id_obs)
     call netcdf_err(error, 'defining obs dimension' )
  
+    !--- define longitude 
+    error = nf90_def_var(ncid, 'lon', nf90_double, id_obs, id_lon)
+    call netcdf_err(error, 'defining lon' )
+    error = nf90_put_att(ncid, id_lon, "long_name", "longitude")
+    call netcdf_err(error, 'defining lon long name' )
+
+    !--- define latitude
+    error = nf90_def_var(ncid, 'lat', nf90_double, id_obs, id_lat)
+    call netcdf_err(error, 'defining lat' )
+    error = nf90_put_att(ncid, id_lat, "long_name", "latitude")
+    call netcdf_err(error, 'defining lat long name' )
+
     !--- define snow cover
-    error = nf90_def_var(ncid, 'IMSfsca', nf90_double, id_obs, id_scfIMS)
-    call netcdf_err(error, 'defining IMSfsca' )
-    error = nf90_put_att(ncid, id_scfIMS, "long_name", "IMS fractional snow covered area")
-    call netcdf_err(error, 'defining IMSfsca long name' )
+    error = nf90_def_var(ncid, 'IMSscf', nf90_double, id_obs, id_scfIMS)
+    call netcdf_err(error, 'defining IMSscf' )
+    error = nf90_put_att(ncid, id_scfIMS, "long_name", "IMS snow covered fraction")
+    call netcdf_err(error, 'defining IMSscf long name' )
     error = nf90_put_att(ncid, id_scfIMS, "units", "-")
-    call netcdf_err(error, 'defining IMSfsca units' )
+    call netcdf_err(error, 'defining IMSscf units' )
 
     !--- define snow depth
     error = nf90_def_var(ncid, 'IMSsnd', nf90_double, id_obs, id_sndIMS)
@@ -266,40 +288,41 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
     error = nf90_enddef(ncid)
     call netcdf_err(error, 'defining header' )
 
+    data_vec=nodata_real
+    coor_vec=nodata_real
+
     n=0
     do t=1,6
      do i=1,idim 
       do j=1,jdim
         if (abs(scfIMS(i,j,t) -nodata_real) > nodata_tol) then 
                 n=n+1
-                data_vec(n) = scfIMS(i,j,t)
+                data_vec(1,n) = scfIMS(i,j,t)
+                data_vec(2,n) = sndIMS(i,j,t)
+                coor_vec(1,n) = lonFV3(i,j,t)
+                coor_vec(2,n) = latFV3(i,j,t)
         endif
       enddo 
      enddo 
     enddo
 
-    error = nf90_put_var(ncid, id_scfIMS, data_vec)
-    call netcdf_err(error, 'writing IMSfsca record')
+    error = nf90_put_var(ncid, id_scfIMS, data_vec(1,:))
+    call netcdf_err(error, 'writing IMSscf record')
 
-    n=0
-    do t=1,6
-     do i=1,idim 
-      do j=1,jdim
-        if (abs(sndIMS(i,j,t) -nodata_real) > nodata_tol) then 
-                n=n+1
-                data_vec(n) = sndIMS(i,j,t)
-        endif
-      enddo 
-     enddo 
-    enddo
-
-    error = nf90_put_var(ncid, id_sndIMS, data_vec)
+    error = nf90_put_var(ncid, id_sndIMS, data_vec(2,:))
     call netcdf_err(error, 'writing IMSsnd record')
+
+    error = nf90_put_var(ncid, id_lon, coor_vec(1,:))
+    call netcdf_err(error, 'writing lon record')
+
+    error = nf90_put_var(ncid, id_lat, coor_vec(2,:))
+    call netcdf_err(error, 'writing lat record')
 
     error = nf90_close(ncid)
     deallocate(data_vec)
+    deallocate(coor_vec)
     
- end subroutine write_fsca_outputs_vec
+ end subroutine write_IMS_outputs_vec
 
 !====================================
 ! read in required forecast fields from a UFS surface restart 
@@ -407,13 +430,15 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! aggregate onto the model grid.
 
  subroutine read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, &
-                    jdim, idim, scfIMS)
+                    jdim, idim, lonFV3, latFV3, scfIMS)
                     
         implicit none
     
         character(len=*), intent(in)   :: IMS_obs_file, IMS_ind_path
         integer, intent(in)            :: jdim, idim 
         real, intent(out)              :: scfIMS(jdim,idim,6)     
+        real, intent(out)              :: lonFV3(jdim,idim,6)     
+        real, intent(out)              :: latFV3(jdim,idim,6)     
     
         integer, allocatable    :: IMS_flag(:,:)   
         integer, allocatable    :: IMS_index(:,:,:)
@@ -500,6 +525,19 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
         error=nf90_get_var(ncid, id_var, IMS_index(:,:,3))
         call netcdf_err(error, 'error reading sncov indices' )
+  
+        ! get the FV3 lat/lon
+        error=nf90_inq_varid(ncid, 'lon_fv3', id_var)
+        call netcdf_err(error, 'error reading lon_fv3 id' )
+
+        error=nf90_get_var(ncid, id_var, lonFV3)
+        call netcdf_err(error, 'error reading lon_fv3 data' )
+
+        error=nf90_inq_varid(ncid, 'lat_fv3', id_var)
+        call netcdf_err(error, 'error reading lat_fv3 id' )
+
+        error=nf90_get_var(ncid, id_var, latFV3)
+        call netcdf_err(error, 'error reading lat_fv3 data' )
     
         error = nf90_close(ncid)
 
@@ -571,9 +609,20 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
        real, intent(out)   :: density(idim,jdim,6)
 
        real :: dens_mean
+       integer :: i,j,t
 
         ! density = swe/snd
-        density = swe/snd
+        do t=1, 6
+         do i =1,idim
+          do j=1,jdim
+                if (snd(i,j,t) > 0.01 ) then
+                        density(i,j,t) = swe(i,j,t)/snd(i,j,t)
+                else
+                        density(i,j,t)=0.1
+                endif
+          enddo 
+         enddo
+        enddo
         where (density < 0.0001) density = 0.1
 
         ! calculate mean density over land
