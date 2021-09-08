@@ -237,7 +237,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
  
     write(resl_str, "(i3)") idim
 
-    output_file = "./IMSfSCA."//date_str//".C"//trim(adjustl(resl_str))//".nc"
+    output_file = "./IMSscf."//date_str//".C"//trim(adjustl(resl_str))//".nc"
     print*,'writing output to ',trim(output_file) 
     
     !--- create the file
