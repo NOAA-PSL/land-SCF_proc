@@ -493,7 +493,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
         write(resl_str, "(i3)") idim
 
-        IMS_ind_file = trim(IMS_ind_path)//"fv3_mapping_C"//trim(adjustl(resl_str))//".nc"                       
+        IMS_ind_file = trim(IMS_ind_path)//"IMS4km_to_FV3_mapping_C"//trim(adjustl(resl_str))//".nc"                       
         print *, 'reading IMS index file', trim(IMS_ind_file) 
 
         inquire(file=trim(IMS_ind_file), exist=file_exists)
