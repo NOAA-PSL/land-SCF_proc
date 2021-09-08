@@ -59,6 +59,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
         ! calculate SWE from IMS snow cover fraction (using model relationship)
         ! no value is calculated if both IMS and model have 100% snow cover
+        ! also removes scfIMS if model is non-land
         call calcSWE_noah(scfIMS, vtype, swefcs, idim, jdim, sweIMS)
 
         ! calculate snow depth from IMS SWE, using model density
@@ -650,8 +651,9 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         implicit none
         !
         integer, intent(in)     :: idim,jdim
-        real, intent(in)        :: scfIMS(idim,jdim,6),  vetfcs_in(idim,jdim,6)
+        real, intent(in)        :: vetfcs_in(idim,jdim,6)
         real, intent(in)        :: swefcs(idim,jdim,6)
+        real, intent(inout)     :: scfIMS(idim,jdim,6) 
         real, intent(out)       :: sweIMS(idim,jdim,6)
         
         integer            :: vetfcs(idim,jdim,6)
@@ -660,7 +662,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         integer            :: i,j,t,vtype_int
 
 
-        !fill background values to nan (to differentiate those that don't have value)
+        ! fill background values to nan
         sweIMS = nodata_real
    
         ! note: this is an empirical inversion of   snfrac rotuine in noah 
@@ -677,32 +679,35 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         salp = -4.0
         vetfcs = nint(vetfcs_in)
         ! this is done in the noaa code, but we don't want to create a value outside land
-        !where(vetfcs==0) vetfcs = 7 
+        ! where(vetfcs==0) vetfcs = 7 
        
         do t =1, 6 
           do i = 1, idim 
             do j = 1, jdim 
           
-                if ( (abs(scfIMS(i,j,t) -nodata_real) > nodata_tol ) .and. & 
-                     (vetfcs(i,j,t)>0)  ) then
-                    snup = snupx(vetfcs(i,j,t))
-                    if (snup == 0.) then
-                        print*, " 0.0 snup value, check vegclasses", vetfcs(i,j,t)
-                        stop
+                if ( abs( scfIMS(i,j,t) - nodata_real ) > nodata_tol ) then  ! is have IMS data
+                    if  (vetfcs(i,j,t)>0)  then ! if model has land
+                        snup = snupx(vetfcs(i,j,t))
+                        if (snup == 0.) then
+                            print*, " 0.0 snup value, check vegclasses", vetfcs(i,j,t)
+                            stop
+                        endif
+
+                        ! if model and IMS both have 100% snow cover, don't convert IMS to a snow depth
+                        if ( (swefcs(i,j,t) >= snup)  .and. (scfIMS(i,j,t) >= 1.0 ) ) cycle 
+
+                        if (scfIMS(i,j,t) >= 1.0) then
+                            rsnow = 1.
+                        elseif (scfIMS(i,j,t) < 0.001) then
+                            rsnow = 0.0 
+                        else
+                            rsnow = min(log(1. - scfIMS(i,j,t)) / salp, 1.0) 
+                        endif  
+                        ! return swe in mm 
+                        sweIMS(i,j,t) = rsnow * snup * 1000. !  mm
+                    else  ! if model is not land, remove the IMS data
+                        scfIMS(i,j,t) = nodata_real 
                     endif
-
-                    ! if model and IMS both have 100% snow cover, don't convert IMS to a snow depth
-                    if ( (swefcs(i,j,t) >= snup)  .and. (scfIMS(i,j,t) >= 1.0 ) ) cycle 
-
-                    if (scfIMS(i,j,t) >= 1.0) then
-                        rsnow = 1.
-                    elseif (scfIMS(i,j,t) < 0.001) then
-                        rsnow = 0.0 
-                    else
-                        rsnow = min(log(1. - scfIMS(i,j,t)) / salp, 1.0) 
-                    endif  
-                    ! return swe in mm 
-                    sweIMS(i,j,t) = rsnow * snup * 1000. !  mm
                 endif
             enddo  
           enddo  
