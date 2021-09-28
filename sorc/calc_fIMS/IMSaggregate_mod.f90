@@ -36,8 +36,9 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         real                :: scfIMS(idim,jdim,6) ! IMS snow cover fraction, on model grid
         real                :: sweIMS(idim,jdim,6) ! SWE derived from scfIMS, on model grid
         real                :: sndIMS(idim,jdim,6) ! snow depth derived from scfIMS, on model grid
-        real                :: lonFV3(idim,jdim,6) ! snow depth derived from scfIMS, on model grid
-        real                :: latFV3(idim,jdim,6) ! snow depth derived from scfIMS, on model grid
+        real                :: lonFV3(idim,jdim,6) ! longitude on model grid
+        real                :: latFV3(idim,jdim,6) ! latutide on model grid
+        real                :: oroFV3(idim,jdim,6) ! orography model grid
         character(len=250)  :: IMS_obs_file
         integer             :: i,j,t
 
@@ -55,7 +56,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         print *, 'reading IMS snow cover data from ', trim(IMS_obs_file) 
 
         call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, jdim, idim,  & 
-                        lonFV3, latFV3, scfIMS)
+                        lonFV3, latFV3, oroFV3, scfIMS)
 
         ! calculate SWE from IMS snow cover fraction (using model relationship)
         ! no value is calculated if both IMS and model have 100% snow cover
@@ -80,7 +81,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 !=============================================================================================
         
         !call write_IMS_outputs_2D(idim, jdim, scfIMS,sndIMS)
-        call write_IMS_outputs_vec(idim, jdim, yyyymmdd, scfIMS, sndIMS, lonFV3, latFV3) 
+        call write_IMS_outputs_vec(idim, jdim, yyyymmdd, scfIMS, sndIMS, lonFV3, latFV3, oroFV3)
 
         return
 
@@ -215,7 +216,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! also writes out the model lat/lon for the grid cell that the data have been 
 ! processed onto.
 
- subroutine write_IMS_outputs_vec(idim, jdim, date_str,scfIMS, sndIMS, lonFV3, latFV3)
+ subroutine write_IMS_outputs_vec(idim, jdim, date_str,scfIMS, sndIMS, lonFV3, latFV3, oroFV3)
 
     implicit none
 
@@ -225,13 +226,14 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
     real, intent(in)            :: sndIMS(idim,jdim,6)
     real, intent(in)            :: latFV3(idim,jdim,6)
     real, intent(in)            :: lonFV3(idim,jdim,6)
+    real, intent(in)            :: oroFV3(idim,jdim,6)
 
     character(len=250)          :: output_file
     character(len=3)            :: resl_str
     integer                     :: header_buffer_val = 16384
     integer                     :: i,j,t,n, nobs
     integer                     :: error, ncid
-    integer                     :: id_scfIMS, id_sndIMS , id_obs, id_lon, id_lat
+    integer                     :: id_scfIMS, id_sndIMS , id_obs, id_lon, id_lat, id_oro
     real, allocatable           :: data_vec(:,:)
     real, allocatable           :: coor_vec(:,:)
  
@@ -252,7 +254,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
     print *, 'writing out', nobs, ' observations'
 
     allocate(data_vec(2,nobs)) 
-    allocate(coor_vec(2,nobs)) 
+    allocate(coor_vec(3,nobs)) 
 
     !--- define dimension
     error = nf90_def_dim(ncid, 'numobs', nobs, id_obs)
@@ -269,6 +271,12 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
     call netcdf_err(error, 'defining lat' )
     error = nf90_put_att(ncid, id_lat, "long_name", "latitude")
     call netcdf_err(error, 'defining lat long name' )
+
+    !--- define orography
+    error = nf90_def_var(ncid, 'oro', nf90_double, id_obs, id_oro)
+    call netcdf_err(error, 'defining oro' )
+    error = nf90_put_att(ncid, id_oro, "long_name", "orography")
+    call netcdf_err(error, 'defining oro long name' )
 
     !--- define snow cover
     error = nf90_def_var(ncid, 'IMSscf', nf90_double, id_obs, id_scfIMS)
@@ -302,6 +310,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
                 data_vec(2,n) = sndIMS(i,j,t)
                 coor_vec(1,n) = lonFV3(i,j,t)
                 coor_vec(2,n) = latFV3(i,j,t)
+                coor_vec(3,n) = oroFV3(i,j,t)
         endif
       enddo 
      enddo 
@@ -318,6 +327,9 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
     error = nf90_put_var(ncid, id_lat, coor_vec(2,:))
     call netcdf_err(error, 'writing lat record')
+
+    error = nf90_put_var(ncid, id_oro, coor_vec(3,:))
+    call netcdf_err(error, 'writing oro record')
 
     error = nf90_close(ncid)
     deallocate(data_vec)
@@ -431,7 +443,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! aggregate onto the model grid.
 
  subroutine read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, &
-                    jdim, idim, lonFV3, latFV3, scfIMS)
+                    jdim, idim, lonFV3, latFV3, oroFV3,scfIMS)
                     
         implicit none
     
@@ -440,6 +452,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         real, intent(out)              :: scfIMS(jdim,idim,6)     
         real, intent(out)              :: lonFV3(jdim,idim,6)     
         real, intent(out)              :: latFV3(jdim,idim,6)     
+        real, intent(out)              :: oroFV3(jdim,idim,6)     
     
         integer, allocatable    :: IMS_flag(:,:)   
         integer, allocatable    :: IMS_index(:,:,:)
@@ -539,6 +552,12 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
         error=nf90_get_var(ncid, id_var, latFV3)
         call netcdf_err(error, 'error reading lat_fv3 data' )
+    
+        error=nf90_inq_varid(ncid, 'oro_fv3', id_var)
+        call netcdf_err(error, 'error reading oro_fv3 id' )
+
+        error=nf90_get_var(ncid, id_var, oroFV3)
+        call netcdf_err(error, 'error reading oro_fv3 data' )
     
         error = nf90_close(ncid)
 
