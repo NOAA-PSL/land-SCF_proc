@@ -637,8 +637,6 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
           do j=1,jdim
                 if (snd(i,j,t) > 0.01 ) then
                         density(i,j,t) = swe(i,j,t)/snd(i,j,t)
-                else
-                        density(i,j,t)=0.1
                 endif
           enddo 
          enddo
@@ -706,7 +704,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
           
                 if ( abs( scfIMS(i,j,t) - nodata_real ) > nodata_tol ) then  ! is have IMS data
                     if  (vetfcs(i,j,t)>0)  then ! if model has land
-                        snup = snupx(vetfcs(i,j,t))
+                        snup = snupx(vetfcs(i,j,t))*1000. ! convert to mm
                         if (snup == 0.) then
                             print*, " 0.0 snup value, check vegclasses", vetfcs(i,j,t)
                             stop
@@ -723,7 +721,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
                             rsnow = min(log(1. - scfIMS(i,j,t)) / salp, 1.0) 
                         endif  
                         ! return swe in mm 
-                        sweIMS(i,j,t) = rsnow * snup * 1000. !  mm
+                        sweIMS(i,j,t) = rsnow * snup  !  mm
                     else  ! if model is not land, remove the IMS data
                         scfIMS(i,j,t) = nodata_real 
                     endif

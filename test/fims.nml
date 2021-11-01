@@ -3,5 +3,5 @@
   jdate=2019350,
   yyyymmdd=20191215,
   IMS_OBS_PATH="/scratch1/NCEPDEV/stmp2/Michael.Barlage/DA/IMSdata/IMS/", 
-  IMS_IND_PATH="/scratch2/NCEPDEV/land/Youlong.Xia/save/obs-product/ims/ims_index/"
+  IMS_IND_PATH="/scratch2/BMC/gsienkf/Clara.Draper/DA_test_cases/snow/IMSobsproc/get_index/"
   / 
