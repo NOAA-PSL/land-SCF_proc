@@ -9,9 +9,8 @@ Output: file with i) IMS-derived snow cover fraction over land on UFS model grid
 To compile: 
 ./build.sh
 
-Test case on hera: /scratch2/BMC/gsienkf/Clara.Draper/DA_test_cases/snow/fIMS
+To run, see example in test/
 
-
-Clara Draper, Tseganeh Gichamo, with input from Youlong Xia. June, 2021.
+Clara Draper. June, 2021.
 
 
