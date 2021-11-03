@@ -1,7 +1,7 @@
  &fIMS_nml
-  idim=768, jdim=768,
+  idim=48, jdim=48,
   jdate=2019350,
   yyyymmdd=20191215,
-  IMS_OBS_PATH="/scratch1/NCEPDEV/stmp2/Michael.Barlage/DA/IMSdata/IMS/", 
-  IMS_IND_PATH="/scratch2/BMC/gsienkf/Clara.Draper/DA_test_cases/snow/IMSobsproc/get_index/"
+  IMS_OBS_PATH="/scratch2/BMC/gsienkf/Clara.Draper/DA_test_cases/obs/snow//IMS/", 
+  IMS_IND_PATH="/scratch2/BMC/gsienkf/Clara.Draper/DA_test_cases/obs/snow//IMS/index_files/"
   / 
