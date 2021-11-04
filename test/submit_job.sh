@@ -29,6 +29,7 @@ cat >> fims.nml << EOF
   yyyymmdd=$YYYYMMDD,
   IMS_OBS_PATH="${SNOW_OBS_DIR}/IMS/", 
   IMS_IND_PATH="${SNOW_OBS_DIR}/IMS/index_files/"
+  lsm=2
   / 
 EOF
 

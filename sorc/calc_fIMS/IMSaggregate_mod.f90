@@ -9,6 +9,24 @@ real, parameter    ::  nodata_real = -999.
 integer, parameter ::  nodata_int = -999
 real, parameter    ::  nodata_tol = 0.1
 
+! IMS noah-MP snow depth retrieval parameters
+real, parameter :: qc_limit = 0.90     ! QC limit for IMS obs (data will be removed if both model and IMS 
+                                       ! are above this limit)
+real, parameter :: trunc_scf = 0.95 ! SCF asymptotes to 1. as SD increases 
+                                       ! use this value when calculating SD to represent "full" coverage
+
+
+! snow depletion curve parameters for IGBP snow depletion curve.
+real, dimension(20), parameter ::  & 
+    mfsno_table = (/ 1.00, 1.00, 1.00, 1.00, 1.00, 2.00, 2.00, &
+                     2.00, 2.00, 2.00, 3.00, 3.00, 4.00, 4.00, &
+                     2.50, 3.00, 3.00, 3.50, 3.50, 3.50 /)
+
+real, dimension(20), parameter ::  & 
+    scffac_table = (/ 0.005, 0.005, 0.005, 0.005, 0.005, 0.008, &
+                      0.008, 0.010, 0.010, 0.010, 0.010, 0.007, 0.021, &  
+                      0.013, 0.015, 0.008, 0.015, 0.015, 0.015, 0.015 /)
+
 contains
 
 !====================================
@@ -20,11 +38,11 @@ contains
 ! (since can get no info from IMS snow cover in this case)
 
 subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, & 
-                                 IMS_ind_path, fcst_path)
+                                 IMS_ind_path, fcst_path, lsm)
                                                         
         implicit none
         
-        integer, intent(in)            :: idim, jdim
+        integer, intent(in)            :: idim, jdim, lsm
         character(len=8), intent(in)  :: yyyymmdd
         character(len=7), intent(in)  :: jdate
         character(len=*), intent(in)   :: IMS_obs_path, IMS_ind_path, fcst_path
@@ -32,9 +50,11 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         real                :: vtype(idim,jdim,6)       ! model vegetation type
         integer             :: landmask(idim,jdim,6)
         real                :: swefcs(idim,jdim,6), sndfcs(idim,jdim,6) ! forecast SWE, SND
+        real                :: stcfcs(idim,jdim,6) ! forecast soil temp  
         real                :: denfcs(idim,jdim,6) ! forecast density
+        real                :: scffcs(idim,jdim,6) ! forecast snow cover fraction
         real                :: scfIMS(idim,jdim,6) ! IMS snow cover fraction, on model grid
-        real                :: sweIMS(idim,jdim,6) ! SWE derived from scfIMS, on model grid
+        real                :: sweIMS(idim,jdim,6) ! SWE derived from scfIMS, on model grid - only needed for noah lsm
         real                :: sndIMS(idim,jdim,6) ! snow depth derived from scfIMS, on model grid
         real                :: lonFV3(idim,jdim,6) ! longitude on model grid
         real                :: latFV3(idim,jdim,6) ! latutide on model grid
@@ -46,9 +66,13 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! 1. Read forecast info, and IMS data and indexes from file, then calculate SWE
 !=============================================================================================
 
-        call  read_fcst(fcst_path, yyyymmdd, idim, jdim, vtype, swefcs, sndfcs, landmask)
+        ! note: snow cover being read here is calculated at the start of the 
+        !       time step, and does not account for snow changes over the last 
+        !       time step. Resulting errors are generally very small.
+        call  read_fcst(fcst_path, yyyymmdd, idim, jdim, vtype, swefcs,  & 
+                        sndfcs, stcfcs, landmask)
 
-        call calc_density(idim, jdim, landmask, swefcs, sndfcs, denfcs)
+        call calc_density(idim, jdim, lsm, landmask, swefcs, sndfcs, stcfcs, denfcs)
 
         ! read IMS obs, and indexes, map to model grid
         IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v1.3.asc"  
@@ -61,20 +85,42 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         ! calculate SWE from IMS snow cover fraction (using model relationship)
         ! no value is calculated if both IMS and model have 100% snow cover
         ! also removes scfIMS if model is non-land
-        call calcSWE_noah(scfIMS, vtype, swefcs, idim, jdim, sweIMS)
-
-        ! calculate snow depth from IMS SWE, using model density
-        do t=1,6
-          do i=1,idim
-            do j=1,jdim 
-              if  ( abs( sweIMS(i,j,t) -nodata_real ) > nodata_tol ) then
-                sndIMS(i,j,t) = sweIMS(i,j,t)/denfcs(i,j,t)
-              else
-                sndIMS(i,j,t) = nodata_real
-              endif
+        if (lsm==1) then
+            call calcSWE_noah(scfIMS, vtype, swefcs, idim, jdim, sweIMS)
+            ! calculate snow depth from IMS SWE, using model density
+            do t=1,6
+              do i=1,idim
+                do j=1,jdim 
+                  if  ( abs( sweIMS(i,j,t) -nodata_real ) > nodata_tol ) then
+                    sndIMS(i,j,t) = sweIMS(i,j,t)/denfcs(i,j,t)
+                  else
+                    sndIMS(i,j,t) = nodata_real
+                  endif
+                enddo
+              enddo
             enddo
-          enddo
-        enddo
+        elseif (lsm==2) then 
+            ! calculate SD from IMS SCF
+            call calcSD_noahmp(scfIMS, vtype, denfcs, idim, jdim, sndIMS)
+
+            ! calculate SCF from model forecast SD and SWE (since not always in restart)
+            call calcSCF_noahmp(vtype, denfcs, sndfcs, idim, jdim, scffcs) 
+
+            exclude IMS snow depth, where both IMS and model are close to 100% 
+            do t=1,6
+              do i=1,idim
+                do j=1,jdim 
+                        if ( (scfIMS(i,j,t) > qc_limit) .and.  (scffcs(i,j,t) > qc_limit) ) then 
+                               sndIMS(i,j,t) = nodata_real
+                        endif 
+                enddo 
+              enddo 
+            enddo
+
+        else 
+            print *, 'unknown lsm:', lsm, ', choose 1 - noah, 2 - noah-mp' 
+            stop
+        endif
 
 !=============================================================================================
 ! 2.  Write outputs
@@ -340,13 +386,14 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 !====================================
 ! read in required forecast fields from a UFS surface restart 
 
- subroutine read_fcst(path, date_str, idim, jdim, vetfcs, swefcs, sndfcs, landmask)
+ subroutine read_fcst(path, date_str, idim, jdim, vetfcs, swefcs, sndfcs, stcfcs, landmask)
 
         implicit none
         character(len=*), intent(in)      :: path
         character(8), intent(in)          :: date_str
         integer, intent(in)               :: idim, jdim
         real, intent(out)                 :: vetfcs(idim,jdim,6), swefcs(idim,jdim,6)
+        real, intent(out)                 :: stcfcs(idim,jdim,6)
         real, intent(out)                 :: sndfcs(idim,jdim,6)
         integer, intent(out)              :: landmask(idim,jdim,6)
 
@@ -356,6 +403,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         character(len=300)        :: fcst_file
 
         real(kind=8)              :: dummy(idim,jdim)
+        real(kind=8)              :: dummy3(idim,jdim,4) ! 4 = number of soil layers
         logical                   :: file_exists
 
         integer, parameter        :: veg_type_landice = 15
@@ -410,6 +458,13 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
             error=nf90_get_var(ncid, id_var, dummy)
             call netcdf_err(error, 'reading snwdph' )
             sndfcs(:,:,t) = dummy
+
+            ! layer 1 soil temperature
+            error=nf90_inq_varid(ncid, "stc", id_var)
+            call netcdf_err(error, 'reading stc id' )
+            error=nf90_get_var(ncid, id_var, dummy3)
+            call netcdf_err(error, 'reading stc' )
+            stcfcs(:,:,t) = dummy3(:,:,1) 
 
             ! land mask
             error=nf90_inq_varid(ncid, "slmsk", id_var)
@@ -619,13 +674,13 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! density = SWE/SND where snow present. 
 !         = average from snow forecasts over land, where snow not present
 
- subroutine calc_density(idim, jdim, landmask, swe, snd, density)
+ subroutine calc_density(idim, jdim, lsm, landmask, swe, snd, stc, density)
 
        implicit none 
 
-       integer, intent(in) :: idim, jdim
+       integer, intent(in) :: idim, jdim, lsm
        integer, intent(in) :: landmask(idim,jdim,6)
-       real, intent(in)    :: swe(idim,jdim,6), snd(idim,jdim,6)
+       real, intent(in)    :: swe(idim,jdim,6), snd(idim,jdim,6), stc(idim,jdim,6)
        real, intent(out)   :: density(idim,jdim,6)
 
        real :: dens_mean
@@ -637,25 +692,30 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
           do j=1,jdim
                 if (snd(i,j,t) > 0.01 ) then
                         density(i,j,t) = swe(i,j,t)/snd(i,j,t)
+                elseif (snd(i,j,t) <= 0.01 .and. lsm==2) then ! for noah-MP, calculate from stc
+                ! divide by 1000 as noah-MP has snd in m
+                        density(i,j,t) = max(80.0,min(120.,67.92+51.25*exp((stc(i,j,t)-273.15)/2.59)))/1000.
                 endif
           enddo 
          enddo
         enddo
-        where (density < 0.0001) density = 0.1
+        where (density < 0.0001) density = 0.08
 
-        ! calculate mean density over land
-        if (count (landmask==1 .and. snd> 0.01) > 0) then
-                ! mean density over snow-covered land
-                dens_mean = sum(density, mask = (landmask==1 .and. snd>0.01 )) &
-                         / count (landmask==1 .and. snd> 0.01)
-                print *, 'mean density: ', dens_mean
-        else
-                dens_mean = 0.1  ! default value if have no snow 
-                print *, 'no snow, using default density: ', dens_mean
+        if (lsm==1) then ! for noah, use mean density 
+            ! calculate mean density over land
+            if (count (landmask==1 .and. snd> 0.01) > 0) then
+                    ! mean density over snow-covered land
+                    dens_mean = sum(density, mask = (landmask==1 .and. snd>0.01 )) &
+                             / count (landmask==1 .and. snd> 0.01)
+                    print *, 'mean density: ', dens_mean
+            else
+                    dens_mean = 0.1  ! default value if have no snow 
+                    print *, 'no snow, using default density: ', dens_mean
+            endif
+
+            ! for grid cells with no valid density, fill in the average snodens
+            where( snd <= 0.01 ) density = dens_mean
         endif
-
-        ! for grid cells with no valid density, fill in the average snodens
-        where( snd <= 0.01 ) density = dens_mean
 
  end subroutine calc_density
 
@@ -732,6 +792,93 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         return
     
  end subroutine calcSWE_noah
+
+!====================================
+! calculate IMS SD from fractional IMS snow cover, using the noah-MP model relationship
+! (this is the inverse of calcSCF_noahmp). 
+
+ subroutine calcSD_noahmp(scfIMS, vetfcs_in, denfcs, idim, jdim,  sndIMS)
+
+        implicit none
+        !
+        integer, intent(in)     :: idim,jdim 
+        real, intent(in)        :: vetfcs_in(idim,jdim,6)
+        real, intent(in)        :: denfcs(idim,jdim,6)
+        real, intent(inout)     :: scfIMS(idim,jdim,6)
+        real, intent(out)       :: sndIMS(idim,jdim,6)
+
+        integer            :: vetfcs
+        real               :: mfsno, scffac,  bdsno, fmelt
+        integer            :: i,j,t,vtype_int
+
+
+        ! fill background values to nan
+        sndIMS = nodata_real
+
+        do t =1, 6
+          do i = 1, idim
+            do j = 1, jdim
+                if ( abs( scfIMS(i,j,t) - nodata_real ) > nodata_tol ) then  ! if have IMS data
+                    vetfcs = int(vetfcs_in(i,j,t))
+                    if  (vetfcs>0)  then ! if model has land
+                      if ( scfIMS(i,j,t) < 0.01 ) then 
+                        sndIMS(i,j,t) = 0. 
+                      else 
+                        ! calculate snow depth
+                        mfsno  =  mfsno_table(vetfcs)
+                        scffac = scffac_table(vetfcs)
+                        bdsno   = max(50., min(650.,denfcs(i,j,t)*1000.) )   ! x1000, as noah-mp has SND in m.
+                        fmelt    = (bdsno/100.)**mfsno
+                        sndIMS(i,j,t) =  (scffac * fmelt)*atanh(min(scfIMS(i,j,t),trunc_scf))*1000. ! x1000 into mm 
+                      endif
+                    endif
+                endif
+            enddo
+          enddo
+        enddo
+
+ end subroutine calcSD_noahmp
+
+!====================================
+! calculate fractional snow cover from SD and density for Noah-MP
+! copied from module_sf_noahmplsm.f90 
+
+ subroutine calcSCF_noahmp(vetfcs_in, denfcs, sndfcs, idim, jdim, scffcs) 
+
+        implicit none
+        !
+        integer, intent(in)     :: idim,jdim 
+        real, intent(in)        :: vetfcs_in(idim,jdim,6)
+        real, intent(in)        :: denfcs(idim,jdim,6)
+        real, intent(in)        :: sndfcs(idim,jdim,6)
+        real, intent(out)       :: scffcs(idim,jdim,6)
+
+        integer            :: vetfcs
+        real               :: mfsno, scffac,  bdsno, fmelt, snowh
+        integer            :: i,j,t,vtype_int
+
+        do t =1, 6
+          do i = 1, idim
+            do j = 1, jdim
+                vetfcs = int(vetfcs_in(i,j,t))
+                if  (vetfcs>0)  then ! if model has land
+                     mfsno  =  mfsno_table(vetfcs)
+                     scffac = scffac_table(vetfcs)
+                     snowh  = sndfcs(i,j,t)*0.001 ! into m
+                     if(sndfcs(i,j,t) .gt.0.)  then
+                         bdsno    = denfcs(i,j,t)*1000. ! 1000, as noah-mp has snd in m 
+                         fmelt    = (bdsno/100.)**mfsno
+                         scffcs(i,j,t) = tanh( snowh /(scffac * fmelt))
+                     else 
+                         scffcs(i,j,t) = 0.
+                     endif 
+               endif 
+            enddo 
+          enddo 
+        enddo 
+
+
+ end subroutine calcSCF_noahmp
 
  end module IMSaggregate_mod
  

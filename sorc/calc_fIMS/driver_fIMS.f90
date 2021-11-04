@@ -15,14 +15,16 @@
  character(len=7)    :: jdate
  character(len=200)  :: IMS_obs_path, IMS_ind_path, fcst_path
  logical             :: file_exists
- integer             :: io, ierr
+ integer             :: io, ierr, lsm
 
- namelist/fIMS_nml/  idim, jdim, yyyymmdd, jdate, IMS_obs_path, IMS_ind_path, fcst_path
+ namelist/fIMS_nml/  idim, jdim, yyyymmdd, jdate, IMS_obs_path, IMS_ind_path, fcst_path, lsm
 
  ! default to current directory 
  IMS_obs_path="./"
  IMS_ind_path="./"
  fcst_path="./"
+
+ lsm=2 ! 1 - noah, 2 - noah-MP. 
 
  ! read namelist
  inquire(file='fims.nml', exist=file_exists)
@@ -35,7 +37,8 @@
  open (action='read', file='fims.nml', iostat=ierr, newunit=io)
  read (nml=fIMS_nml, iostat=ierr, unit=io) 
  close (io) 
-
- call calculate_scfIMS(idim, jdim, yyyymmdd, jdate,IMS_obs_path, IMS_ind_path, fcst_path)
+ 
+ print *, 'lsm', lsm
+ call calculate_scfIMS(idim, jdim, yyyymmdd, jdate,IMS_obs_path, IMS_ind_path, fcst_path, lsm) 
 
  end program driver_fIMS
