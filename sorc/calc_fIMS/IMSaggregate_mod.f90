@@ -106,7 +106,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
             ! calculate SCF from model forecast SD and SWE (since not always in restart)
             call calcSCF_noahmp(vtype, denfcs, sndfcs, idim, jdim, scffcs) 
 
-            exclude IMS snow depth, where both IMS and model are close to 100% 
+            !exclude IMS snow depth, where both IMS and model are close to 100% 
             do t=1,6
               do i=1,idim
                 do j=1,jdim 
