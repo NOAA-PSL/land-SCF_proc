@@ -38,11 +38,12 @@ contains
 ! (since can get no info from IMS snow cover in this case)
 
 subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, & 
-                                 IMS_ind_path, fcst_path, lsm)
+                            IMS_ind_path, fcst_path, lsm, imsformat)
                                                         
         implicit none
         
         integer, intent(in)            :: idim, jdim, lsm
+         integer, intent(in)           :: imsformat
         character(len=8), intent(in)  :: yyyymmdd
         character(len=7), intent(in)  :: jdate
         character(len=*), intent(in)   :: IMS_obs_path, IMS_ind_path, fcst_path
@@ -74,13 +75,20 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
         call calc_density(idim, jdim, lsm, landmask, swefcs, sndfcs, stcfcs, denfcs)
 
-        ! read IMS obs, and indexes, map to model grid
-        IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v1.3.asc"  
+        ! read in either ascii or nc  IMS obs, and indexes, map to model grid
 
-        print *, 'reading IMS snow cover data from ', trim(IMS_obs_file) 
+        if (imsformat==1) then
+            IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v1.3.asc"
+        elseif (imsformat==2) then  
+            IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v1.3.nc"
+        else
+          print *, 'fatal error reading IMS snow cover data '    
+       endif
+       
+       print *, 'reading ASCII IMS snow cover data from ', trim(IMS_obs_file) 
 
-        call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, jdim, idim,  & 
-                        lonFV3, latFV3, oroFV3, scfIMS)
+       call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, imsformat, &
+                                   jdim, idim, lonFV3, latFV3, oroFV3, scfIMS)
 
         ! calculate SWE from IMS snow cover fraction (using model relationship)
         ! no value is calculated if both IMS and model have 100% snow cover
@@ -498,12 +506,12 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! aggregate onto the model grid.
 
  subroutine read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, &
-                    jdim, idim, lonFV3, latFV3, oroFV3,scfIMS)
+            imsformat, jdim, idim, lonFV3, latFV3, oroFV3,scfIMS)
                     
         implicit none
     
         character(len=*), intent(in)   :: IMS_obs_file, IMS_ind_path
-        integer, intent(in)            :: jdim, idim 
+        integer, intent(in)            :: jdim, idim, imsformat 
         real, intent(out)              :: scfIMS(jdim,idim,6)     
         real, intent(out)              :: lonFV3(jdim,idim,6)     
         real, intent(out)              :: latFV3(jdim,idim,6)     
@@ -534,16 +542,36 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         i_ims = 6144
         j_ims = 6144
         allocate(IMS_flag(j_ims, i_ims))   
+        
+        if (imsformat==1) then
+        ! read in ascii IMS data  
+            open(10, file=IMS_obs_file, form="formatted", status="old")
           
-        open(10, file=IMS_obs_file, form="formatted", status="old")
-          
-        do irow = 1, 30
-          read(10,*)     ! read ims ascii header
-        end do
+            do irow = 1, 30
+             read(10,*)     ! read ims ascii header
+            end do
 
-        do irow = 1, j_ims
-          read(10,'(6144i1)') (IMS_flag(icol, irow), icol=1, i_ims)
-        end do
+            do irow = 1, j_ims
+               read(10,'(6144i1)') (IMS_flag(icol, irow), icol=1, i_ims)
+            end do
+
+        elseif (imsformat==2) then
+        ! read in netCDF IMS data
+           error=nf90_open(trim(IMS_obs_file),nf90_nowrite, ncid)
+           call netcdf_err(error, 'opening file: '//trim(IMS_obs_file) )
+
+           error=nf90_inq_varid(ncid, trim(IMS_obs_file), id_var)
+           call netcdf_err(error, 'error reading IMS id' )
+           
+           error=nf90_get_var(ncid, id_var, IMS_flag)
+           call netcdf_err(error, 'error reading IMS nc data' )
+           
+           error = nf90_close(ncid)
+
+        else
+           print*,'fatal error reading IMS OBS file'
+           stop 10   
+        endif 
 
         ! IMS codes: 0 - outside range,
         !          : 1 - sea
