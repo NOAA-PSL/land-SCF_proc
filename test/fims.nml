@@ -5,5 +5,5 @@
   IMS_OBS_PATH="/scratch2/BMC/gsienkf/Clara.Draper/DA_test_cases/obs/snow//IMS/", 
   IMS_IND_PATH="/scratch2/BMC/gsienkf/Clara.Draper/DA_test_cases/obs/snow//IMS/index_files/"
   lsm=2
-  imsformat=1
+  imsformat=2
   / 
