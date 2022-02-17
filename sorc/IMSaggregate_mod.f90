@@ -560,7 +560,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
            error=nf90_open(trim(IMS_obs_file),nf90_nowrite, ncid)
            call netcdf_err(error, 'opening file: '//trim(IMS_obs_file) )
 
-           error=nf90_inq_varid(ncid, trim(IMS_obs_file), id_var)
+           error=nf90_inq_varid(ncid, 'IMS_Surface_Values', id_var)
            call netcdf_err(error, 'error reading IMS id' )
            
            error=nf90_get_var(ncid, id_var, IMS_flag)
