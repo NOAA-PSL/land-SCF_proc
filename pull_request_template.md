@@ -1,9 +1,9 @@
 PR Instructions: 
 1. Provide details under all headings below. 
-2. Link the PR to an issue. 
-3. If the PR is not ready for merging, add the "DRAFT/DO NOT MERGE" label.
-4. When a PR is ready to merge, remove the "DRAFT/DO NOT MERGE" and email Clara. 
-5. Before requesting that the PR be merged, complete the checklist below. 
+2. Assign Clara and one other person as reviewers. 
+4. If the PR is not ready for merging, add the "DRAFT/DO NOT MERGE" label.
+5. When a PR is ready to merge, remove the "DRAFT/DO NOT MERGE" and email Clara. 
+6. Before requesting that the PR be merged, complete the checklist below. 
 
 Notes on preparing PR, using git can be found in README_git
 
