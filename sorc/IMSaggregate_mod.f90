@@ -38,12 +38,13 @@ contains
 ! (since can get no info from IMS snow cover in this case)
 
 subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, & 
-                            IMS_ind_path, fcst_path, lsm, imsformat)
+                            IMS_ind_path, fcst_path, lsm, imsformat, imsversion)
                                                         
         implicit none
         
         integer, intent(in)            :: idim, jdim, lsm
-         integer, intent(in)           :: imsformat
+        integer, intent(in)           :: imsformat
+        character(len=10)             :: imsversion
         character(len=8), intent(in)  :: yyyymmdd
         character(len=7), intent(in)  :: jdate
         character(len=*), intent(in)   :: IMS_obs_path, IMS_ind_path, fcst_path
@@ -78,9 +79,9 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         ! read in either ascii or nc  IMS obs, and indexes, map to model grid
 
         if (imsformat==1) then
-            IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v1.3.asc"
+            IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v"//trim(imsversion)//".asc"
         elseif (imsformat==2) then  
-            IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v1.3.nc"
+            IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v"//trim(imsversion)//".nc"
         else
           print *, 'fatal error reading IMS snow cover data '    
        endif
