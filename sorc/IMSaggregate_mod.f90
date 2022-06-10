@@ -10,7 +10,7 @@ integer, parameter ::  nodata_int = -999
 real, parameter    ::  nodata_tol = 0.1
 
 ! IMS noah-MP snow depth retrieval parameters
-real, parameter :: qc_limit = 0.90     ! QC limit for IMS obs (data will be removed if both model and IMS 
+real, parameter :: qc_limit = 0.50     ! QC limit for IMS obs (data will be removed if both model and IMS 
                                        ! are above this limit)
 real, parameter :: trunc_scf = 0.95 ! SCF asymptotes to 1. as SD increases 
                                        ! use this value when calculating SD to represent "full" coverage
