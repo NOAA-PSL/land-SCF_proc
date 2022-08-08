@@ -2,9 +2,9 @@
 set -eux
 
 # check if part of workflow. If so, use those modules.
-if [ -f ../workflow_mods_bash ]; then 
+if [ -f ../land_mods_hera ]; then 
   echo 'using workflow modules'
-  source ../workflow_mods_bash
+  source ../land_mods_hera
 else
   echo 'using own modules'
   source hera_modules
