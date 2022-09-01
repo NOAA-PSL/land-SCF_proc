@@ -14,6 +14,7 @@ real, parameter :: qc_limit = 0.50     ! QC limit for IMS obs (data will be remo
                                        ! are above this limit)
 real, parameter :: trunc_scf = 0.95 ! SCF asymptotes to 1. as SD increases 
                                        ! use this value when calculating SD to represent "full" coverage
+real, parameter :: sndIMS_max = 300. ! maximum snow depth for snow depth derived from SCF.
 
 
 ! snow depletion curve parameters for IGBP snow depletion curve.
@@ -126,9 +127,13 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
             do t=1,6
               do i=1,idim
                 do j=1,jdim 
-                        if ( (scfIMS(i,j,t) > qc_limit) .and.  (scffcs(i,j,t) > qc_limit) ) then 
+                        if ( (scfIMS(i,j,t) > qc_limit ) .and.  & 
+                                (  (scffcs(i,j,t) > trunc_scf ) .or.  (sndfcs(i,j,t ) >  sndIMS(i,j,t) ) ) ) then 
                                sndIMS(i,j,t) = nodata_real
                         endif 
+                        if ( sndIMS(i,j,t) > sndIMS_max ) then 
+                               sndIMS(i,j,t) = nodata_real
+                        endif
                 enddo 
               enddo 
             enddo
@@ -736,7 +741,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
           enddo 
          enddo
         enddo
-        where (density < 0.0001) density = 0.08
+        where (density < 0.0001) density = 0.08 ! CSD units here are wrong. Update this once model is updated.nn
 
         if (lsm==1) then ! for noah, use mean density 
             ! calculate mean density over land
@@ -858,16 +863,18 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
                 if ( abs( scfIMS(i,j,t) - nodata_real ) > nodata_tol ) then  ! if have IMS data
                     vetfcs = int(vetfcs_in(i,j,t))
                     if  (vetfcs>0)  then ! if model has land
-                      if ( scfIMS(i,j,t) < 0.01 ) then 
+                       if ( scfIMS(i,j,t) < 0.5 ) then 
                         sndIMS(i,j,t) = 0. 
-                      else 
+                       else
                         ! calculate snow depth
                         mfsno  =  mfsno_table(vetfcs)
                         scffac = scffac_table(vetfcs)
                         bdsno   = max(50., min(650.,denfcs(i,j,t)*1000.) )   ! x1000, as noah-mp has SND in m.
                         fmelt    = (bdsno/100.)**mfsno
-                        sndIMS(i,j,t) =  (scffac * fmelt)*atanh(min(scfIMS(i,j,t),trunc_scf))*1000. ! x1000 into mm 
+                        sndIMS(i,j,t) =  (scffac * fmelt)*atanh(trunc_scf)*1000. ! x1000 into mm 
                       endif
+                    else 
+                        scfIMS(i,j,t) = nodata_real ! also remove SCF if not land in model.
                     endif
                 endif
             enddo
@@ -902,7 +909,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
                      mfsno  =  mfsno_table(vetfcs)
                      scffac = scffac_table(vetfcs)
                      snowh  = sndfcs(i,j,t)*0.001 ! into m
-                     if(sndfcs(i,j,t) .gt.0.)  then
+                     if(sndfcs(i,j,t) .gt.0.0)  then
                          bdsno    = denfcs(i,j,t)*1000. ! 1000, as noah-mp has snd in m 
                          fmelt    = (bdsno/100.)**mfsno
                          scffcs(i,j,t) = tanh( snowh /(scffac * fmelt))
