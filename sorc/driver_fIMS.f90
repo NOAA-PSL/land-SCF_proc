@@ -13,12 +13,13 @@
  integer             :: idim, jdim
  character(len=8)    :: yyyymmdd
  character(len=7)    :: jdate
+ character(len=10)   :: otype ! orography type, format C$RES (atm) or C${RES}.mx100 (coupled atm/ocean)
  character(len=200)  :: IMS_obs_path, IMS_ind_path, fcst_path
  logical             :: file_exists
  integer             :: io, ierr, lsm, imsformat
  character(len=10)   :: imsversion
 
- namelist/fIMS_nml/  idim, jdim, yyyymmdd, jdate, IMS_obs_path, IMS_ind_path, fcst_path, lsm, imsformat, imsversion
+ namelist/fIMS_nml/  idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, IMS_ind_path, fcst_path, lsm, imsformat, imsversion
 
  ! default to current directory 
  IMS_obs_path="./"
@@ -42,6 +43,6 @@
  close (io) 
  
  print *, 'lsm', lsm
- call calculate_scfIMS(idim, jdim, yyyymmdd, jdate,IMS_obs_path, IMS_ind_path, fcst_path, lsm, imsformat, imsversion)
+ call calculate_scfIMS(idim, jdim, otype,yyyymmdd, jdate,IMS_obs_path, IMS_ind_path, fcst_path, lsm, imsformat, imsversion)
 
  end program driver_fIMS

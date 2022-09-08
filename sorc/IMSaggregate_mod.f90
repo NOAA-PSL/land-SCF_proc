@@ -45,18 +45,19 @@ contains
 ! SD is QC'ed out where both model and obs have 100% snow cover 
 ! (since can get no info from IMS snow cover in this case)
 
-subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, & 
+subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, & 
                             IMS_ind_path, fcst_path, lsm, imsformat, imsversion)
                                                         
         implicit none
         
         integer, intent(in)            :: idim, jdim, lsm
         integer, intent(in)           :: imsformat
-        character(len=10)             :: imsversion
+        character(len=10), intent(in) :: otype  
         character(len=8), intent(in)  :: yyyymmdd
         character(len=7), intent(in)  :: jdate
         character(len=*), intent(in)   :: IMS_obs_path, IMS_ind_path, fcst_path
 
+        character(len=10)             :: imsversion
         real                :: vtype(idim,jdim,6)       ! model vegetation type
         integer             :: landmask(idim,jdim,6)
         real                :: swefcs(idim,jdim,6), sndfcs(idim,jdim,6) ! forecast SWE, SND
@@ -97,7 +98,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
        print *, 'reading ASCII IMS snow cover data from ', trim(IMS_obs_file) 
 
        call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, imsformat, &
-                                   jdim, idim, lonFV3, latFV3, oroFV3, scfIMS)
+                                   jdim, idim, otype, lonFV3, latFV3, oroFV3, scfIMS)
 
         ! calculate SWE from IMS snow cover fraction (using model relationship)
         ! no value is calculated if both IMS and model have 100% snow cover
@@ -148,7 +149,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 !=============================================================================================
         
         !call write_IMS_outputs_2D(idim, jdim, scfIMS,sndIMS)
-        call write_IMS_outputs_vec(idim, jdim, yyyymmdd, scfIMS, sndIMS, lonFV3, latFV3, oroFV3)
+        call write_IMS_outputs_vec(idim, jdim, otype, yyyymmdd, scfIMS, sndIMS, lonFV3, latFV3, oroFV3)
 
         return
 
@@ -283,12 +284,12 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! also writes out the model lat/lon for the grid cell that the data have been 
 ! processed onto.
 
- subroutine write_IMS_outputs_vec(idim, jdim, date_str,scfIMS, sndIMS, lonFV3, latFV3, oroFV3)
+ subroutine write_IMS_outputs_vec(idim, jdim, otype, date_str,scfIMS, sndIMS, lonFV3, latFV3, oroFV3)
 
     implicit none
-
-    integer, intent(in)         :: idim, jdim
     character(len=8), intent(in)  :: date_str
+    character(len=10), intent(in)  :: otype
+    integer, intent(in)         :: idim, jdim
     real, intent(in)            :: scfIMS(idim,jdim,6)
     real, intent(in)            :: sndIMS(idim,jdim,6)
     real, intent(in)            :: latFV3(idim,jdim,6)
@@ -296,7 +297,6 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
     real, intent(in)            :: oroFV3(idim,jdim,6)
 
     character(len=250)          :: output_file
-    character(len=3)            :: resl_str
     integer                     :: header_buffer_val = 16384
     integer                     :: i,j,t,n, nobs
     integer                     :: error, ncid
@@ -304,9 +304,7 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
     real, allocatable           :: data_vec(:,:)
     real, allocatable           :: coor_vec(:,:)
  
-    write(resl_str, "(i3)") idim
-
-    output_file = "./IMSscf."//date_str//".C"//trim(adjustl(resl_str))//".nc"
+    output_file = "./IMSscf."//date_str//"."//trim(adjustl(otype))//".nc"
     print*,'writing output to ',trim(output_file) 
     
     !--- create the file
@@ -519,12 +517,13 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 ! aggregate onto the model grid.
 
  subroutine read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, &
-            imsformat, jdim, idim, lonFV3, latFV3, oroFV3,scfIMS)
+            imsformat, jdim, idim, otype, lonFV3, latFV3, oroFV3,scfIMS)
                     
         implicit none
     
         character(len=*), intent(in)   :: IMS_obs_file, IMS_ind_path
-        integer, intent(in)            :: jdim, idim, imsformat 
+        integer, intent(in)            :: jdim, idim, imsformat
+        character(len=10), intent(in)  :: otype
         real, intent(out)              :: scfIMS(jdim,idim,6)     
         real, intent(out)              :: lonFV3(jdim,idim,6)     
         real, intent(out)              :: latFV3(jdim,idim,6)     
@@ -537,7 +536,6 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
         integer                :: error, ncid, id_dim, id_var , n_ind
         integer                :: i_ims, j_ims, itile, tile, tile_i, tile_j
         logical                :: file_exists
-        character(len=3)       :: resl_str
         character(len=250)     :: IMS_ind_file
 
         integer                :: icol, irow
@@ -601,9 +599,8 @@ subroutine calculate_scfIMS(idim, jdim, yyyymmdd, jdate, IMS_obs_path, &
 
         ! read index file for mapping IMS to model grid 
 
-        write(resl_str, "(i3)") idim
+        IMS_ind_file = trim(IMS_ind_path)//"IMS4km_to_FV3_mapping_"//trim(adjustl(otype))//".nc"
 
-        IMS_ind_file = trim(IMS_ind_path)//"IMS4km_to_FV3_mapping_C"//trim(adjustl(resl_str))//".nc"                       
         print *, 'reading IMS index file', trim(IMS_ind_file) 
 
         inquire(file=trim(IMS_ind_file), exist=file_exists)
