@@ -13,7 +13,7 @@
  integer             :: idim, jdim
  character(len=8)    :: yyyymmdd
  character(len=7)    :: jdate
- character(len=10)   :: otype ! orography type, format C$RES (atm) or C${RES}.mx100 (coupled atm/ocean)
+ character(len=20)   :: otype ! orography type, format C$RES (atm) or C${RES}.mx100 (coupled atm/ocean)
  character(len=200)  :: IMS_obs_path, IMS_ind_path, fcst_path
  logical             :: file_exists
  integer             :: io, ierr, lsm, imsformat

@@ -52,7 +52,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, &
         
         integer, intent(in)            :: idim, jdim, lsm
         integer, intent(in)           :: imsformat
-        character(len=10), intent(in) :: otype  
+        character(len=20), intent(in) :: otype  
         character(len=8), intent(in)  :: yyyymmdd
         character(len=7), intent(in)  :: jdate
         character(len=*), intent(in)   :: IMS_obs_path, IMS_ind_path, fcst_path
@@ -288,7 +288,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, &
 
     implicit none
     character(len=8), intent(in)  :: date_str
-    character(len=10), intent(in)  :: otype
+    character(len=20), intent(in)  :: otype
     integer, intent(in)         :: idim, jdim
     real, intent(in)            :: scfIMS(idim,jdim,6)
     real, intent(in)            :: sndIMS(idim,jdim,6)
@@ -523,7 +523,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, &
     
         character(len=*), intent(in)   :: IMS_obs_file, IMS_ind_path
         integer, intent(in)            :: jdim, idim, imsformat
-        character(len=10), intent(in)  :: otype
+        character(len=20), intent(in)  :: otype
         real, intent(out)              :: scfIMS(jdim,idim,6)     
         real, intent(out)              :: lonFV3(jdim,idim,6)     
         real, intent(out)              :: latFV3(jdim,idim,6)     
@@ -599,7 +599,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, &
 
         ! read index file for mapping IMS to model grid 
 
-        IMS_ind_file = trim(IMS_ind_path)//"IMS4km_to_FV3_mapping_"//trim(adjustl(otype))//".nc"
+        IMS_ind_file = trim(IMS_ind_path)//"IMS4km_to_FV3_mapping."//trim(adjustl(otype))//".nc"
 
         print *, 'reading IMS index file', trim(IMS_ind_file) 
 
