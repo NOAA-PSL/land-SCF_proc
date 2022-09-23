@@ -45,7 +45,12 @@ contains
 ! SD is QC'ed out where both model and obs have 100% snow cover 
 ! (since can get no info from IMS snow cover in this case)
 
-subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, & 
+! note on timing: files are once a day, nominally at 0 UTC. 
+! currently reading in file at specified time (date_str), writing out truncated to 
+! day only. Then IODA converter is assigning time to 18 of that day. Note: I don't 
+! think this will work for files at 00 (time will get assigned to 18 hours later).
+
+subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, & 
                             IMS_ind_path, fcst_path, lsm, imsformat, imsversion)
                                                         
         implicit none
@@ -53,7 +58,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, &
         integer, intent(in)            :: idim, jdim, lsm
         integer, intent(in)           :: imsformat
         character(len=20), intent(in) :: otype  
-        character(len=8), intent(in)  :: yyyymmdd
+        character(len=11), intent(in)  :: yyyymmddhh
         character(len=7), intent(in)  :: jdate
         character(len=*), intent(in)   :: IMS_obs_path, IMS_ind_path, fcst_path
 
@@ -80,7 +85,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, &
         ! note: snow cover being read here is calculated at the start of the 
         !       time step, and does not account for snow changes over the last 
         !       time step. Resulting errors are generally very small.
-        call  read_fcst(fcst_path, yyyymmdd, idim, jdim, vtype, swefcs,  & 
+        call  read_fcst(fcst_path, yyyymmddhh, idim, jdim, vtype, swefcs,  & 
                         sndfcs, stcfcs, landmask)
 
         call calc_density(idim, jdim, lsm, landmask, swefcs, sndfcs, stcfcs, denfcs)
@@ -149,7 +154,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, &
 !=============================================================================================
         
         !call write_IMS_outputs_2D(idim, jdim, scfIMS,sndIMS)
-        call write_IMS_outputs_vec(idim, jdim, otype, yyyymmdd, scfIMS, sndIMS, lonFV3, latFV3, oroFV3)
+        call write_IMS_outputs_vec(idim, jdim, otype, yyyymmddhh, scfIMS, sndIMS, lonFV3, latFV3, oroFV3)
 
         return
 
@@ -287,7 +292,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, &
  subroutine write_IMS_outputs_vec(idim, jdim, otype, date_str,scfIMS, sndIMS, lonFV3, latFV3, oroFV3)
 
     implicit none
-    character(len=8), intent(in)  :: date_str
+    character(len=11), intent(in)  :: date_str
     character(len=20), intent(in)  :: otype
     integer, intent(in)         :: idim, jdim
     real, intent(in)            :: scfIMS(idim,jdim,6)
@@ -304,7 +309,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, &
     real, allocatable           :: data_vec(:,:)
     real, allocatable           :: coor_vec(:,:)
  
-    output_file = "./IMSscf."//date_str//"."//trim(adjustl(otype))//".nc"
+    output_file = "./IMSscf."//date_str(1:8)//"."//trim(adjustl(otype))//".nc"
     print*,'writing output to ',trim(output_file) 
     
     !--- create the file
@@ -409,7 +414,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, &
 
         implicit none
         character(len=*), intent(in)      :: path
-        character(8), intent(in)          :: date_str
+        character(11), intent(in)          :: date_str
         integer, intent(in)               :: idim, jdim
         real, intent(out)                 :: vetfcs(idim,jdim,6), swefcs(idim,jdim,6)
         real, intent(out)                 :: stcfcs(idim,jdim,6)
@@ -428,10 +433,9 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmdd, jdate, IMS_obs_path, &
         integer, parameter        :: veg_type_landice = 15
 
         do t =1,6
-            ! read forecast file (note: hard-coded to 18 UTC)
             write(tt, "(i1)") t
             fcst_file = trim(path)//trim(date_str)// & 
-                                ".180000.sfc_data.tile"//tt//".nc"
+                                "0000.sfc_data.tile"//tt//".nc"
 
             print *, 'reading model backgroundfile:', trim(fcst_file)
 
