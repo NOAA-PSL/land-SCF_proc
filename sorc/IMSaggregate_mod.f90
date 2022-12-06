@@ -103,7 +103,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
           print *, 'fatal error reading IMS snow cover data '    
        endif
        
-       print *, 'reading ASCII IMS snow cover data from ', trim(IMS_obs_file) 
+       print *, 'reading IMS snow cover data from ', trim(IMS_obs_file) 
 
        call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, imsformat, &
                                    jdim, idim, otype, lonFV3, latFV3, oroFV3, scfIMS)
