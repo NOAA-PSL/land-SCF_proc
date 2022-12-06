@@ -51,7 +51,7 @@ contains
 ! think this will work for files at 00 (time will get assigned to 18 hours later).
 
 subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, & 
-                            IMS_ind_path, fcst_path, lsm, imsformat, imsversion)
+                            IMS_ind_path, fcst_path, lsm, imsformat, imsversion, skip_SD)
                                                         
         implicit none
         
@@ -61,6 +61,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
         character(len=11), intent(in)  :: yyyymmddhh
         character(len=7), intent(in)  :: jdate
         character(len=*), intent(in)   :: IMS_obs_path, IMS_ind_path, fcst_path
+        logical, intent(in)            :: skip_SD
 
         character(len=10)             :: imsversion
         real                :: vtype(idim,jdim,6)       ! model vegetation type
@@ -82,13 +83,15 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 ! 1. Read forecast info, and IMS data and indexes from file, then calculate SWE
 !=============================================================================================
 
-        ! note: snow cover being read here is calculated at the start of the 
-        !       time step, and does not account for snow changes over the last 
-        !       time step. Resulting errors are generally very small.
-        call  read_fcst(fcst_path, yyyymmddhh, idim, jdim, vtype, swefcs,  & 
-                        sndfcs, stcfcs, landmask)
+        if (.not. skip_SD) then
+            ! note: snow cover being read here is calculated at the start of the 
+            !       time step, and does not account for snow changes over the last 
+            !       time step. Resulting errors are generally very small.
+            call  read_fcst(fcst_path, yyyymmddhh, idim, jdim, vtype, swefcs,  & 
+                            sndfcs, stcfcs, landmask)
 
-        call calc_density(idim, jdim, lsm, landmask, swefcs, sndfcs, stcfcs, denfcs)
+            call calc_density(idim, jdim, lsm, landmask, swefcs, sndfcs, stcfcs, denfcs)
+        endif 
 
         ! read in either ascii or nc  IMS obs, and indexes, map to model grid
 
@@ -105,50 +108,53 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
        call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, imsformat, &
                                    jdim, idim, otype, lonFV3, latFV3, oroFV3, scfIMS)
 
-        ! calculate SWE from IMS snow cover fraction (using model relationship)
-        ! no value is calculated if both IMS and model have 100% snow cover
-        ! also removes scfIMS if model is non-land
-        if (lsm==1) then
-            call calcSWE_noah(scfIMS, vtype, swefcs, idim, jdim, sweIMS)
-            ! calculate snow depth from IMS SWE, using model density
-            do t=1,6
-              do i=1,idim
-                do j=1,jdim 
-                  if  ( abs( sweIMS(i,j,t) -nodata_real ) > nodata_tol ) then
-                    sndIMS(i,j,t) = sweIMS(i,j,t)/denfcs(i,j,t)
-                  else
-                    sndIMS(i,j,t) = nodata_real
-                  endif
+       if (.not. skip_SD) then
+            ! calculate SWE from IMS snow cover fraction (using model relationship)
+            ! no value is calculated if both IMS and model have 100% snow cover
+            ! also removes scfIMS if model is non-land
+            if (lsm==1) then
+                call calcSWE_noah(scfIMS, vtype, swefcs, idim, jdim, sweIMS)
+                ! calculate snow depth from IMS SWE, using model density
+                do t=1,6
+                  do i=1,idim
+                    do j=1,jdim 
+                      if  ( abs( sweIMS(i,j,t) -nodata_real ) > nodata_tol ) then
+                        sndIMS(i,j,t) = sweIMS(i,j,t)/denfcs(i,j,t)
+                      else
+                        sndIMS(i,j,t) = nodata_real
+                      endif
+                    enddo
+                  enddo
                 enddo
-              enddo
-            enddo
-        elseif (lsm==2) then 
-            ! calculate SD from IMS SCF
-            call calcSD_noahmp(scfIMS, vtype, denfcs, idim, jdim, sndIMS)
+            elseif (lsm==2) then 
+                ! calculate SD from IMS SCF
+                call calcSD_noahmp(scfIMS, vtype, denfcs, idim, jdim, sndIMS)
 
-            ! calculate SCF from model forecast SD and SWE (since not always in restart)
-            call calcSCF_noahmp(vtype, denfcs, sndfcs, idim, jdim, scffcs) 
+                ! calculate SCF from model forecast SD and SWE (since not always in restart)
+                call calcSCF_noahmp(vtype, denfcs, sndfcs, idim, jdim, scffcs) 
 
-            !exclude IMS snow depth, where both IMS and model are close to 100% 
-            do t=1,6
-              do i=1,idim
-                do j=1,jdim 
-                        if ( (scfIMS(i,j,t) > qc_limit ) .and.  & 
-                                (  (scffcs(i,j,t) > trunc_scf ) .or.  (sndfcs(i,j,t ) >  sndIMS(i,j,t) ) ) ) then 
-                               sndIMS(i,j,t) = nodata_real
-                        endif 
-                        if ( sndIMS(i,j,t) > sndIMS_max ) then 
-                               sndIMS(i,j,t) = nodata_real
-                        endif
-                enddo 
-              enddo 
-            enddo
+                !exclude IMS snow depth, where both IMS and model are close to 100% 
+                do t=1,6
+                  do i=1,idim
+                    do j=1,jdim 
+                            if ( (scfIMS(i,j,t) > qc_limit ) .and.  & 
+                                    (  (scffcs(i,j,t) > trunc_scf ) .or.  (sndfcs(i,j,t ) >  sndIMS(i,j,t) ) ) ) then 
+                                   sndIMS(i,j,t) = nodata_real
+                            endif 
+                            if ( sndIMS(i,j,t) > sndIMS_max ) then 
+                                   sndIMS(i,j,t) = nodata_real
+                            endif
+                    enddo 
+                  enddo 
+                enddo
 
+            else 
+                print *, 'unknown lsm:', lsm, ', choose 1 - noah, 2 - noah-mp' 
+                stop 10 
+            endif
         else 
-            print *, 'unknown lsm:', lsm, ', choose 1 - noah, 2 - noah-mp' 
-            stop 10 
-        endif
-
+                sndIMS=nodata_real
+        endif ! skip_SD
 !=============================================================================================
 ! 2.  Write outputs
 !=============================================================================================
