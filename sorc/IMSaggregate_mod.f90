@@ -51,7 +51,7 @@ contains
 ! think this will work for files at 00 (time will get assigned to 18 hours later).
 
 subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, & 
-                            IMS_ind_path, fcst_path, lsm, imsformat, imsversion, skip_SD)
+                            IMS_ind_path, fcst_path, lsm, imsformat, imsversion, imsres, skip_SD)
                                                         
         implicit none
         
@@ -62,8 +62,8 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
         character(len=7), intent(in)  :: jdate
         character(len=*), intent(in)   :: IMS_obs_path, IMS_ind_path, fcst_path
         logical, intent(in)            :: skip_SD
+        character(len=10), intent(in)  :: imsversion, imsres 
 
-        character(len=10)             :: imsversion
         real                :: vtype(idim,jdim,6)       ! model vegetation type
         integer             :: landmask(idim,jdim,6)
         real                :: swefcs(idim,jdim,6), sndfcs(idim,jdim,6) ! forecast SWE, SND
@@ -96,16 +96,16 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
         ! read in either ascii or nc  IMS obs, and indexes, map to model grid
 
         if (imsformat==1) then
-            IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v"//trim(imsversion)//".asc"
+            IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_"//trim(imsres)//"_v"//trim(imsversion)//".asc"
         elseif (imsformat==2) then  
-            IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_4km_v"//trim(imsversion)//".nc"
+            IMS_obs_file = trim(IMS_obs_path)//"ims"//trim(jdate)//"_"//trim(imsres)//"_v"//trim(imsversion)//".nc"
         else
           print *, 'fatal error reading IMS snow cover data '    
        endif
        
        print *, 'reading IMS snow cover data from ', trim(IMS_obs_file) 
 
-       call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, imsformat, &
+       call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, imsformat, imsres, &
                                    jdim, idim, otype, lonFV3, latFV3, oroFV3, scfIMS)
 
        if (.not. skip_SD) then
@@ -527,13 +527,14 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 ! aggregate onto the model grid.
 
  subroutine read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, &
-            imsformat, jdim, idim, otype, lonFV3, latFV3, oroFV3,scfIMS)
+            imsformat, imsres, jdim, idim, otype, lonFV3, latFV3, oroFV3,scfIMS)
                     
         implicit none
     
         character(len=*), intent(in)   :: IMS_obs_file, IMS_ind_path
         integer, intent(in)            :: jdim, idim, imsformat
         character(len=20), intent(in)  :: otype
+        character(len=10), intent(in)  :: imsres
         real, intent(out)              :: scfIMS(jdim,idim,6)     
         real, intent(out)              :: lonFV3(jdim,idim,6)     
         real, intent(out)              :: latFV3(jdim,idim,6)     
@@ -560,8 +561,18 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 
         endif
 
-        i_ims = 6144
-        j_ims = 6144
+        ! to do - better to read these from file? 
+        if (trim(imsres) == "4km" ) then 
+            i_ims = 6144
+            j_ims = 6144
+        elseif (trim(imsres) == "24km" ) then 
+            i_ims = 1024
+            j_ims = 1024
+        else 
+           print *, 'unrecognised imsres', trim(imsres), ' exiting'
+           stop 10
+        endif
+
         allocate(IMS_flag(j_ims, i_ims))   
         
         if (imsformat==1) then
@@ -609,7 +620,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 
         ! read index file for mapping IMS to model grid 
 
-        IMS_ind_file = trim(IMS_ind_path)//"IMS4km_to_FV3_mapping."//trim(adjustl(otype))//".nc"
+        IMS_ind_file = trim(IMS_ind_path)//"IMS"//trim(imsres)//"_to_FV3_mapping."//trim(adjustl(otype))//".nc"
 
         print *, 'reading IMS index file', trim(IMS_ind_file) 
 
