@@ -19,16 +19,16 @@ real, parameter :: sndIMS_max = 300. ! maximum snow depth for snow depth derived
 
 ! snow depletion curve parameters for IGBP snow depletion curve.
 ! ORIGINAL
-!real, dimension(20), parameter ::  & 
-!    mfsno_table = (/ 1.00, 1.00, 1.00, 1.00, 1.00, 2.00, 2.00, &
-!                     2.00, 2.00, 2.00, 3.00, 3.00, 4.00, 4.00, &
-!                     2.50, 3.00, 3.00, 3.50, 3.50, 3.50 /)
-
-! LIMIT MFSNO to 3.
 real, dimension(20), parameter ::  & 
     mfsno_table = (/ 1.00, 1.00, 1.00, 1.00, 1.00, 2.00, 2.00, &
-                     2.00, 2.00, 2.00, 3.00, 3.00, 3.00, 3.00, &
-                     2.50, 3.00, 3.00, 3.00, 3.00, 3.00 /)
+                     2.00, 2.00, 2.00, 3.00, 3.00, 4.00, 4.00, &
+                     2.50, 3.00, 3.00, 3.50, 3.50, 3.50 /)
+
+! LIMIT MFSNO to 3.
+!real, dimension(20), parameter ::  & 
+!    mfsno_table = (/ 1.00, 1.00, 1.00, 1.00, 1.00, 2.00, 2.00, &
+!                     2.00, 2.00, 2.00, 3.00, 3.00, 3.00, 3.00, &
+!                     2.50, 3.00, 3.00, 3.00, 3.00, 3.00 /)
 
 real, dimension(20), parameter ::  & 
     scffac_table = (/ 0.005, 0.005, 0.005, 0.005, 0.005, 0.008, &
