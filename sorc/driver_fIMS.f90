@@ -19,17 +19,16 @@
  integer             :: io, ierr, lsm, imsformat
  character(len=10)   :: imsversion
 
- namelist/fIMS_nml/  idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, IMS_ind_path, fcst_path, lsm, imsformat, imsversion, skip_SD
+ namelist/fIMS_nml/  idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, IMS_ind_path, fcst_path, lsm, imsformat, imsversion
 
  ! default to current directory 
  IMS_obs_path="./"
  IMS_ind_path="./"
  fcst_path="./"
-
+ skip_SD=.false.
  lsm=2 ! 1 - noah, 2 - noah-MP. 
  imsformat=2  ! 1 - ascii format, 2 - netCDF format
  imsversion="1.3" ! 1.2 before Dec 3 2014, 1.3 from Dec 3 2014 onwards.
- skip_SD=.false.
 
  ! read namelist
  inquire(file='fims.nml', exist=file_exists)
@@ -44,6 +43,6 @@
  close (io) 
  
  print *, 'lsm', lsm
- call calculate_scfIMS(idim, jdim, otype,yyyymmddhh, jdate,IMS_obs_path, IMS_ind_path, fcst_path, lsm, imsformat, imsversion)
+ call calculate_scfIMS(idim, jdim, otype,yyyymmddhh, jdate,IMS_obs_path, IMS_ind_path, fcst_path, lsm, imsformat, imsversion, skip_SD)
 
  end program driver_fIMS
