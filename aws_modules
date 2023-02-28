@@ -1,0 +1,9 @@
+module purge
+
+#module load gnu/9.2.0
+#module load netcdf
+#module load openmpi/4.1.2
+module load intel/2022.1.2
+module load impi/2022.1.2
+module load netcdf/4.7.0
+

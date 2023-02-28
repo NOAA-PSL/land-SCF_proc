@@ -1,16 +1,15 @@
 #! /usr/bin/env bash
 set -eux
+machine='aws'
 
 # check if part of workflow. If so, use those modules.
-if [ -f ../land_mods_hera ]; then 
-  echo 'using workflow modules'
-  source ../land_mods_hera
-else
-  echo 'using own modules'
-  source hera_modules
+if [ $machine == "hera" ]; then
+   source ./hera_modules
+elif [ $machine == 'aws' ]; then
+  source ./aws_modules
 fi 
 
-export FCMP=mpiifort
+export FCMP=ifort
 
 # Check final exec folder exists
 if [ ! -d "./exec" ]; then
@@ -18,4 +17,4 @@ if [ ! -d "./exec" ]; then
 fi
 
 cd ./sorc/
-./makefile.sh
+./Makefile.sh

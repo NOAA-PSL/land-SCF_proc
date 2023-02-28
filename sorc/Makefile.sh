@@ -1,4 +1,4 @@
-#!/bin/ksh
+#!/bin/bash
 set -x
 #-----------------------------------------------------
 #-use standard module.
@@ -7,6 +7,7 @@ set -x
 #export INCS=${NETCDF_INCLUDE}             # netcdf_parallel module sets this
 export INCS="-I${NETCDF}/include"          # netcdf modules does not 
 export FFLAGS="$INCS -O3 -fp-model precise -r8 -convert big_endian -traceback -g"
+#export FFLAGS="$INCS -O2 -fbacktrace -g -ffree-line-length-none"
 
 #export LIBSM="${NETCDF_LDFLAGS_F}"        # as above
 export LIBSM="-L${NETCDF}/lib -lnetcdff"

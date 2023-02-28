@@ -1,11 +1,11 @@
-SHELL=	/bin/ksh
+SHELL=	/bin/bash
 FC      =$(FCMP)
 LIBS    =$(LIBSM) 
 OBJS	=driver_fIMS.o IMSaggregate_mod.o
 
 CMD     =calcfIMS
 $(CMD):	$(OBJS)
-	${FC} $(FFLAGS) $(OBJS) $(LIBS) -o $(CMD)
+	${FC} $(FFLAGS) ${LDFLAGS} $(OBJS) $(LIBS) -o $(CMD)
 
 IMSaggregate_mod.o: IMSaggregate_mod.f90
 	$(FC)  $(FFLAGS) -c IMSaggregate_mod.f90
