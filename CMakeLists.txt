@@ -56,8 +56,8 @@ target_include_directories(${PROJECT_NAME} INTERFACE
                             $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/${MODULE_DIR}>
                             $<INSTALL_INTERFACE:${MODULE_DIR}>)
 
-set( JEDIINCR_INCLUDE_DIRS  ${CMAKE_Fortran_MODULE_DIRECTORY} )
-set( JEDIINCR_LIBRARIES imsproc )
+set( IMSPROC_INCLUDE_DIRS  ${CMAKE_Fortran_MODULE_DIRECTORY} )
+set( IMSPROC_LIBRARIES imsproc )
 
 # calcfIMS.exe executable
 #-------------------------------------------------------------------------------

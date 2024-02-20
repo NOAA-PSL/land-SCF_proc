@@ -1,21 +1,33 @@
-#! /usr/bin/env bash
-set -eux
+#!/bin/bash
 
-# check if part of workflow. If so, use those modules.
-if [ -f ../land_mods_hera ]; then 
-  echo 'using workflow modules'
-  source ../land_mods_hera
-else
-  echo 'using own modules'
-  source hera_modules
-fi 
+# cmake build script for IMS processing code 
+# uses GDASApp environment for consistency with workflow(s) 
+# only actually needs intel, impi, and netcdf
+# eg: intel/2020.2 impi/2018.0.4 netcdf/4.7.0
 
-export FCMP=mpiifort
+source ../env_GDASApp 
 
-# Check final exec folder exists
-if [ ! -d "./exec" ]; then
-  mkdir ./exec
+if [[ -d exec ]]; then 
+  rm -rf exec 
 fi
+mkdir exec
 
-cd ./sorc/
-./makefile.sh
+if [[ -d build ]]; then 
+  rm -rf build 
+fi
+mkdir build
+cd build 
+
+# configure 
+cmake .. -DCMAKE_INSTALL_PREFIX=../exec
+
+# build 
+cmake --build  .
+
+# install 
+cmake --build . --target install
+
+cd .. 
+
+exit 0
+
