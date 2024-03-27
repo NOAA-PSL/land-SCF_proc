@@ -10,10 +10,8 @@ integer, parameter ::  nodata_int = -999
 real, parameter    ::  nodata_tol = 0.1
 
 ! IMS noah-MP snow depth retrieval parameters
-real, parameter :: qc_limit = 0.50     ! QC limit for IMS obs (data will be removed if both model and IMS 
-                                       ! are above this limit)
-real, parameter :: trunc_scf = 0.95 ! SCF asymptotes to 1. as SD increases 
-                                       ! use this value when calculating SD to represent "full" coverage
+real, parameter :: trunc_scf = 0.95 ! For the Noah-MP snow depletion curve, SCF asymptotes to 1. as SD increases 
+                                    ! use this value when calculating SD to represent "full" coverage
 real, parameter :: sndIMS_max = 300. ! maximum snow depth for snow depth derived from SCF.
 
 
@@ -42,14 +40,17 @@ contains
 ! then IMS SND, and write out results on model grid.
 ! SWE is calculated using the model relationship. 
 ! SD is calculated using the forecast snow density. 
-! SD is QC'ed out where both model and obs have 100% snow cover 
+! SD is QC'ed out where both model and obs have "full" snow cover 
 ! (since can get no info from IMS snow cover in this case)
 
-! note on timing: files are once a day, nominally at 0 UTC. 
-! currently reading in file at specified time (date_str), writing out truncated to 
-! day only. Then IODA converter is assigning time to 18 of that day. Note: I don't 
-! think this will work for files at 00 (time will get assigned to 18 hours later).
+! note: original version of this code used model and observed snow cover as a fraction. 
+! However, comparison between model and observations shows that the obs can have <100% 
+! snow cover for very deep snow (likely, due to satellite seeing trees, etc), while this 
+! does not (cannot) occur in the model.  This resulted in the DA incorrectly removing snow 
+! when this occured. The code has now been reverted to process the IMS SCF as 100% for SFC>50%, and 
+! as 0% for SCF < 50%.
 
+! note on timing: files are once a day, nominally at 0 UTC. 
 subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, & 
                             IMS_ind_path, fcst_path, lsm, imsformat, imsversion, imsres, skip_SD)
                                                         
@@ -133,11 +134,14 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
                 ! calculate SCF from model forecast SD and SWE (since not always in restart)
                 call calcSCF_noahmp(vtype, denfcs, sndfcs, idim, jdim, scffcs) 
 
-                !exclude IMS snow depth, where both IMS and model are close to 100% 
+                !exclude IMS snow depth, where both IMS and model are 100% 
                 do t=1,6
                   do i=1,idim
                     do j=1,jdim 
-                            if ( (scfIMS(i,j,t) > qc_limit ) .and.  & 
+                            ! do not assimilate, if obs and model indicate "full" snow. 
+                            ! (recall: converting obs SCF>0.5 to full snow)
+                            ! additional check to remove obs if obs have full snow, but calculated snow depth is lower than the model
+                            if ( (scfIMS(i,j,t) >= 0.5 ) .and.  & 
                                     (  (scffcs(i,j,t) > trunc_scf ) .or.  (sndfcs(i,j,t ) >  sndIMS(i,j,t) ) ) ) then 
                                    sndIMS(i,j,t) = nodata_real
                             endif 
@@ -881,7 +885,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
                 if ( abs( scfIMS(i,j,t) - nodata_real ) > nodata_tol ) then  ! if have IMS data
                     vetfcs = int(vetfcs_in(i,j,t))
                     if  (vetfcs>0)  then ! if model has land
-                       if ( scfIMS(i,j,t) < 0.5 ) then 
+                       if ( scfIMS(i,j,t) < 0.5 ) then  ! if obs SCF< 0.5, reduce to 0.
                         sndIMS(i,j,t) = 0. 
                        else
                         ! calculate snow depth
