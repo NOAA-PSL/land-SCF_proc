@@ -333,7 +333,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     dd=date_str(7:8)
 
     offset_ss=0
-    current_date=yyyy//'-'//mm//'-'//dd//' 18:00:00'
+    current_date=yyyy//'-'//mm//'-'//dd//' 00:00:00'
 
     call calc_sec_since(since_date, current_date, offset_ss, sec_since)
     
