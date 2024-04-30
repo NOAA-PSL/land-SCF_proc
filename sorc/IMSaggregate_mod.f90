@@ -479,8 +479,6 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
         do t =1,6
             write(tt, "(i1)") t
             fcst_file = trim(path)//trim(date_str)//"0000.sfc_data.tile"//tt//".nc"
-            print *, path
-            print *, date_str
             print *, 'reading model backgroundfile:', trim(fcst_file)
 
             inquire(file=trim(fcst_file), exist=file_exists)
