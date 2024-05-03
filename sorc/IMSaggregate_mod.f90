@@ -108,7 +108,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 
        call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, imsformat, imsres, &
                                    jdim, idim, otype, lonFV3, latFV3, oroFV3, scfIMS)
-       
+
        if (.not. skip_SD) then
             ! calculate SWE from IMS snow cover fraction (using model relationship)
             ! no value is calculated if both IMS and model have 100% snow cover
@@ -133,7 +133,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 
                 ! calculate SCF from model forecast SD and SWE (since not always in restart)
                 call calcSCF_noahmp(vtype, denfcs, sndfcs, idim, jdim, scffcs) 
-                
+
                 !exclude IMS snow depth, where both IMS and model are 100% 
                 do t=1,6
                   do i=1,idim
@@ -165,7 +165,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
         
         !call write_IMS_outputs_2D(idim, jdim, scfIMS,sndIMS)
         call write_IMS_outputs_vec(idim, jdim, otype, yyyymmddhh, scfIMS, sndIMS, lonFV3, latFV3, oroFV3)
-        
+
         return
 
  end subroutine calculate_scfIMS
@@ -299,7 +299,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 ! also writes out the model lat/lon for the grid cell that the data have been 
 ! processed onto.
 
- subroutine write_IMS_outputs_vec(idim, jdim, otype, date_str, scfIMS, sndIMS, lonFV3, latFV3, oroFV3)
+ subroutine write_IMS_outputs_vec(idim, jdim, otype, date_str,scfIMS, sndIMS, lonFV3, latFV3, oroFV3)
 
     implicit none
     character(len=11), intent(in)  :: date_str
@@ -311,15 +311,6 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     real, intent(in)            :: lonFV3(idim,jdim,6)
     real, intent(in)            :: oroFV3(idim,jdim,6)
 
-    double precision            :: sec_since
-    integer                     :: offset_ss
-    integer                     :: dim_time, id_time
-
-    character(len=4)            :: yyyy
-    character(len=2)            :: mm, dd
-    character(len=19)           :: current_date
-    character(len=19)           :: since_date = "1970-01-01 00:00:00"
-
     character(len=250)          :: output_file
     integer                     :: header_buffer_val = 16384
     integer                     :: i,j,t,n, nobs
@@ -327,16 +318,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     integer                     :: id_scfIMS, id_sndIMS , id_obs, id_lon, id_lat, id_oro
     real, allocatable           :: data_vec(:,:)
     real, allocatable           :: coor_vec(:,:)
-
-    yyyy=date_str(1:4)
-    mm=date_str(5:6)
-    dd=date_str(7:8)
-
-    offset_ss=0
-    current_date=yyyy//'-'//mm//'-'//dd//' 00:00:00'
-
-    call calc_sec_since(since_date, current_date, offset_ss, sec_since)
-    
+ 
     output_file = "./IMSscf."//date_str(1:8)//"."//trim(adjustl(otype))//".nc"
     print*,'writing output to ',trim(output_file) 
     
@@ -354,22 +336,10 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     allocate(data_vec(2,nobs)) 
     allocate(coor_vec(3,nobs)) 
 
-    !--- define location dimension
+    !--- define dimension
     error = nf90_def_dim(ncid, 'numobs', nobs, id_obs)
     call netcdf_err(error, 'defining obs dimension' )
-
-    ! --- define time dimension
-    error = nf90_def_dim(ncid, 'time', nf90_unlimited, dim_time)
-    call netcdf_err(error, 'defining time dimension' )
  
-    !--- define time
-    error = nf90_def_var(ncid, 'time', nf90_double, dim_time, id_time)
-    call netcdf_err(error, 'defining time' )
-    error = nf90_put_att(ncid, id_time, "long_name", "time")
-    call netcdf_err(error, 'defining time long name' )
-    error = nf90_put_att(ncid, id_time, "units", "seconds since "//since_date)
-    call netcdf_err(error, 'defining time units' ) 
-
     !--- define longitude 
     error = nf90_def_var(ncid, 'lon', nf90_double, id_obs, id_lon)
     call netcdf_err(error, 'defining lon' )
@@ -389,7 +359,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     call netcdf_err(error, 'defining oro long name' )
 
     !--- define snow cover
-    error = nf90_def_var(ncid, 'IMSscf', nf90_double, (/id_obs,dim_time/), id_scfIMS)
+    error = nf90_def_var(ncid, 'IMSscf', nf90_double, id_obs, id_scfIMS)
     call netcdf_err(error, 'defining IMSscf' )
     error = nf90_put_att(ncid, id_scfIMS, "long_name", "IMS snow covered fraction")
     call netcdf_err(error, 'defining IMSscf long name' )
@@ -397,12 +367,15 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     call netcdf_err(error, 'defining IMSscf units' )
 
     !--- define snow depth
-    error = nf90_def_var(ncid, 'IMSsnd', nf90_double, (/id_obs,dim_time/), id_sndIMS)
+    error = nf90_def_var(ncid, 'IMSsnd', nf90_double, id_obs, id_sndIMS)
     call netcdf_err(error, 'defining IMSsnd' )
     error = nf90_put_att(ncid, id_sndIMS, "long_name", "IMS snow depth")
     call netcdf_err(error, 'defining IMSsnd long name' )
     error = nf90_put_att(ncid, id_sndIMS, "units", "mm")
     call netcdf_err(error, 'defining IMSsnd units' )
+
+    error = nf90_put_att(ncid, NF90_GLOBAL, "valid_date", date_str(1:8))
+    call netcdf_err(error, 'put valid_date as global attribute')
 
     error = nf90_enddef(ncid)
     call netcdf_err(error, 'defining header' )
@@ -426,14 +399,10 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
      enddo 
     enddo
 
-    ! --- put time, lat, lon, data
-    error = nf90_put_var(ncid, id_time, sec_since)
-    call netcdf_err(error, 'writing time record')
-
-    error = nf90_put_var(ncid, id_scfIMS, data_vec(1,:), start = (/1,1/), count = (/nobs,1/))
+    error = nf90_put_var(ncid, id_scfIMS, data_vec(1,:))
     call netcdf_err(error, 'writing IMSscf record')
 
-    error = nf90_put_var(ncid, id_sndIMS, data_vec(2,:), start = (/1,1/), count = (/nobs,1/))
+    error = nf90_put_var(ncid, id_sndIMS, data_vec(2,:))
     call netcdf_err(error, 'writing IMSsnd record')
 
     error = nf90_put_var(ncid, id_lon, coor_vec(1,:))
@@ -444,7 +413,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 
     error = nf90_put_var(ncid, id_oro, coor_vec(3,:))
     call netcdf_err(error, 'writing oro record')
-
+  
     error = nf90_close(ncid)
     deallocate(data_vec)
     deallocate(coor_vec)
@@ -478,7 +447,9 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 
         do t =1,6
             write(tt, "(i1)") t
-            fcst_file = trim(path)//trim(date_str)//"0000.sfc_data.tile"//tt//".nc"
+            fcst_file = trim(path)//trim(date_str)// & 
+                                "0000.sfc_data.tile"//tt//".nc"
+
             print *, 'reading model backgroundfile:', trim(fcst_file)
 
             inquire(file=trim(fcst_file), exist=file_exists)
@@ -670,7 +641,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     
         error=nf90_open(trim(IMS_ind_file),nf90_nowrite, ncid)
         call netcdf_err(error, 'opening file: '//trim(IMS_ind_file) )
-   
+    
         allocate(IMS_index(j_ims, i_ims, 3))
 
         error=nf90_inq_varid(ncid, 'tile', id_var)
@@ -732,12 +703,12 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 
           end do
         end do
-        
+
         where(land_points > 0) scfIMS = snow_points/land_points
     
         deallocate(IMS_flag)
         deallocate(IMS_index)
-        
+
         return
         
  end subroutine read_IMS_onto_model_grid
@@ -979,88 +950,4 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
  end subroutine calcSCF_noahmp
 
  end module IMSaggregate_mod
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate time in seconds
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-subroutine calc_sec_since(since_date, current_date, offset_ss, sec_since)
-
-! calculate number of seconds between since_date and current_date
-
-double precision      :: sec_since
-character*19 :: since_date, current_date  ! format: yyyy-mm-dd hh:nn:ss
-integer      :: offset_ss
-integer      :: since_yyyy, since_mm, since_dd, since_hh, since_nn, since_ss
-integer      :: current_yyyy, current_mm, current_dd, current_hh, current_nn, current_ss
-logical      :: leap_year = .false.
-integer      :: iyyyy, imm
-integer, dimension(12), parameter :: days_in_mm = (/31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 /)
-  write(*,*) "since_date=", since_date
-  write(*,*) "current_date=", current_date
-  write(*,*) "offset_ss=", offset_ss
-  sec_since = 0
-
-  read(since_date( 1: 4),  '(i4)') since_yyyy
-  read(since_date( 6: 7),  '(i2)') since_mm
-  read(since_date( 9:10),  '(i2)') since_dd
-  read(since_date(12:13),  '(i2)') since_hh
-  read(since_date(15:16),  '(i2)') since_nn
-  read(since_date(18:19),  '(i2)') since_ss
-
-  read(current_date( 1: 4),  '(i4)') current_yyyy
-  read(current_date( 6: 7),  '(i2)') current_mm
-  read(current_date( 9:10),  '(i2)') current_dd
-  read(current_date(12:13),  '(i2)') current_hh
-  read(current_date(15:16),  '(i2)') current_nn
-  read(current_date(18:19),  '(i2)') current_ss
-
-! not worrying about the complexity of non-recent leap years
-! calculate number of seconds in all years
-  do iyyyy = since_yyyy, current_yyyy
-    if(mod(iyyyy,4) == 0) then
-      sec_since = sec_since + 366*86400
-    else
-      sec_since = sec_since + 365*86400
-    end if
-  end do
-
-! remove seconds from since_year
-  if(mod(since_yyyy,4) == 0) leap_year = .true.
-
-  do imm = 1,since_mm-1
-    sec_since = sec_since - days_in_mm(imm)*86400
-  end do
-
-  if(leap_year .and. since_mm > 2) sec_since = sec_since - 86400
-
-  sec_since = sec_since - (since_dd - 1) * 86400
-
-  sec_since = sec_since - (since_hh) * 3600
-
-  sec_since = sec_since - (since_nn) * 60
-
-  sec_since = sec_since - (since_ss)
-
-! remove seconds in current_year
-
-  leap_year = .false.
-  if(mod(current_yyyy,4) == 0) leap_year = .true.
-
-  do imm = current_mm+1, 12
-    sec_since = sec_since - days_in_mm(imm)*86400
-  end do
-  if(leap_year .and. current_mm < 3) sec_since = sec_since - 86400
-
-  sec_since = sec_since - (days_in_mm(current_mm) - current_dd) * 86400
-
-  sec_since = sec_since - (23 - current_hh) * 3600
-
-  sec_since = sec_since - (59 - current_nn) * 60
-
-  sec_since = sec_since - (60 - current_ss)
-
-  sec_since = sec_since + offset_ss
-
-end subroutine calc_sec_since
  
