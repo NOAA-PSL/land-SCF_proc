@@ -1,2 +1,6 @@
 exec/*
 build/*
+test/20230501*
+test/fims.nml
+test/calcfIMS.exe
+GDASApp

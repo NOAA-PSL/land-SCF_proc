@@ -4,10 +4,13 @@ To run,
 
 >submit_job.sh (can run from login node)
 
-output: IMSfSCA.20191215.C48.nc
+output: IMSscf.20230501.oro_C48.nc
 
-output should match files in  ./output/ 
+output should match files in  /scratch2/BMC/gsienkf/Clara.Draper/DA_test_cases/land-IMSproc/output
 
 Clara Draper.
-Sep 8, 2021
+Sep 8, 2021 
+
+May 20, 2024. 
+Updated to fractional grid, Noah-MP example.
 
