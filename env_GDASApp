@@ -1,0 +1,19 @@
+# environment and modules for compiling / running executables using GDASApp
+# selected lines, taken from GDASApp/build.sh
+
+# to do - make compiler an optional argument
+# move JEDI_EXECDIR to script
+
+# get GDAS directory
+export dir_root="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+export GDASApp_root=${dir_root}/GDASApp/
+
+# environment for GDASApp 
+COMPILER="${COMPILER:-intel}"
+source $GDASApp_root/ush/detect_machine.sh
+source $GDASApp_root/ush/module-setup.sh
+module use $GDASApp_root/modulefiles
+module load GDAS/${MACHINE_ID}.$COMPILER
+
+# set pythonpath for ioda converters
+export PYTHONPATH=$PYTHONPATH:/scratch2/NCEPDEV/land/data/DA/GDASApp/sorc/iodaconv/src/:/scratch2/NCEPDEV/land/data/DA/GDASApp/build/lib/python3.10

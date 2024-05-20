@@ -1,9 +1,0 @@
- &fIMS_nml
-  idim=48, jdim=48,
-  jdate=2019350,
-  yyyymmdd=20191215,
-  IMS_OBS_PATH="/scratch2/BMC/gsienkf/Clara.Draper/DA_test_cases/obs/snow//IMS/", 
-  IMS_IND_PATH="/scratch2/BMC/gsienkf/Clara.Draper/DA_test_cases/obs/snow//IMS/index_files/"
-  lsm=2
-  imsformat=2
-  / 

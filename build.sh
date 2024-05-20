@@ -12,7 +12,7 @@ else
         # assume installed a subdir of DA_update
         env_file="../env_GDASApp" 
 fi 
-source ../env_GDASApp 
+source $env_file
 
 if [[ -d exec ]]; then 
   rm -rf exec 
