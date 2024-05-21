@@ -56,14 +56,14 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
                                                         
         implicit none
         
-        integer, intent(in)            :: idim, jdim, lsm
-        integer, intent(in)           :: imsformat
-        character(len=20), intent(in) :: otype  
-        character(len=11), intent(in)  :: yyyymmddhh
-        character(len=7), intent(in)  :: jdate
-        character(len=*), intent(in)   :: IMS_obs_path, IMS_ind_path, fcst_path
-        logical, intent(in)            :: skip_SD
-        character(len=10), intent(in)  :: imsversion, imsres 
+        integer, intent(in)             :: idim, jdim, lsm
+        integer, intent(in)             :: imsformat
+        character(len=20), intent(in)   :: otype  
+        character(len=11), intent(in)   :: yyyymmddhh
+        character(len=7), intent(in)    :: jdate
+        character(len=*), intent(in)    :: IMS_obs_path, IMS_ind_path, fcst_path
+        logical, intent(in)             :: skip_SD
+        character(len=10), intent(in)   :: imsversion, imsres 
 
         real                :: vtype(idim,jdim,6)       ! model vegetation type
         integer             :: landmask(idim,jdim,6)
@@ -80,7 +80,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
         character(len=250)  :: IMS_obs_file
         character(len=8)    :: date_from_file
         integer             :: i,j,t
-
+        double precision    :: time
 !=============================================================================================
 ! 1. Read forecast info, and IMS data and indexes from file, then calculate SWE
 !=============================================================================================
@@ -108,7 +108,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
        print *, 'reading IMS snow cover data from ', trim(IMS_obs_file) 
 
        call read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, imsformat, imsres, &
-                                   jdim, idim, otype, lonFV3, latFV3, oroFV3, scfIMS, date_from_file)
+                                   jdim, idim, otype, lonFV3, latFV3, oroFV3, scfIMS, date_from_file, time)
 
        if (.not. skip_SD) then
             ! calculate SWE from IMS snow cover fraction (using model relationship)
@@ -165,7 +165,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 !=============================================================================================
         
         !call write_IMS_outputs_2D(idim, jdim, scfIMS,sndIMS)
-        call write_IMS_outputs_vec(idim, jdim, otype, yyyymmddhh, scfIMS, sndIMS, lonFV3, latFV3, oroFV3, date_from_file)
+        call write_IMS_outputs_vec(idim, jdim, otype, yyyymmddhh, scfIMS, sndIMS, lonFV3, latFV3, oroFV3, date_from_file, time)
 
         return
 
@@ -300,13 +300,14 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 ! also writes out the model lat/lon for the grid cell that the data have been 
 ! processed onto.
 
- subroutine write_IMS_outputs_vec(idim, jdim, otype, date_str,scfIMS, sndIMS, lonFV3, latFV3, oroFV3, date_from_file)
+ subroutine write_IMS_outputs_vec(idim, jdim, otype, date_str,scfIMS, sndIMS, lonFV3, latFV3, oroFV3, date_from_file, time)
 
     implicit none
     character(len=11), intent(in)  :: date_str
     character(len=20), intent(in)  :: otype
     character(len=8), intent(in)   :: date_from_file
-    integer, intent(in)         :: idim, jdim
+    integer, intent(in)            :: idim, jdim
+    double precision, intent(in)   :: time
     real, intent(in)            :: scfIMS(idim,jdim,6)
     real, intent(in)            :: sndIMS(idim,jdim,6)
     real, intent(in)            :: latFV3(idim,jdim,6)
@@ -315,7 +316,9 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 
     character(len=250)          :: output_file
     character(len=8)            :: dateout
+    character(len=10)           :: time_char
     integer                     :: header_buffer_val = 16384
+    integer                     :: dim_time, id_time
     integer                     :: i,j,t,n, nobs
     integer                     :: error, ncid
     integer                     :: id_scfIMS, id_sndIMS , id_obs, id_lon, id_lat, id_oro
@@ -338,6 +341,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 
     if(date_from_file == "ascifile") then
       dateout = date_str(1:8)
+      time_char =  date_str(1:8)//date_str(10:11)
     else
       dateout = date_from_file 
     endif
@@ -345,10 +349,52 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     allocate(data_vec(2,nobs)) 
     allocate(coor_vec(3,nobs)) 
 
-    !--- define dimension
+    !--- define spatial dimension
     error = nf90_def_dim(ncid, 'numobs', nobs, id_obs)
     call netcdf_err(error, 'defining obs dimension' )
- 
+
+    !--- define time dimension
+    error = nf90_def_dim(ncid, 'time', nf90_unlimited, dim_time)
+    call netcdf_err(error, 'defining time dimension' )
+
+    ! --- define time variable and units
+    if(date_from_file == "ascifile") then
+        error = nf90_def_var(ncid, 'time_str', nf90_char, dim_time, id_time)
+        call netcdf_err(error, 'defining time_str' )
+
+        error = nf90_put_att(ncid, id_time, "comment", "This is YYYYMMDDHH read from ascii file.")
+        call netcdf_err(error, 'defining time comment' )
+
+    else   
+        error = nf90_def_var(ncid, 'time', nf90_double, dim_time, id_time)
+        call netcdf_err(error, 'defining time' )
+
+        error = nf90_put_att(ncid, id_time, "CoordinateAxisType", "Time")
+        call netcdf_err(error, 'defining time CoordinateAxisType' )
+
+        error = nf90_put_att(ncid, id_time, "axis", "T")
+        call netcdf_err(error, 'defining time axis' )
+
+        error = nf90_put_att(ncid, id_time, "comment", "This is the 00Z reference time. &
+          Note that products are nowcasted to be valid specifically at the time given here.")
+        call netcdf_err(error, 'defining time comment' )
+
+        error = nf90_put_att(ncid, id_time, "ioos_category", "Time")
+        call netcdf_err(error, 'defining time ioos_category' )
+
+        error = nf90_put_att(ncid, id_time, "standard_name", "time")
+        call netcdf_err(error, 'defining time standard name' )
+
+        error = nf90_put_att(ncid, id_time, "time_origin", "01-JAN-1970 00:00:00")
+        call netcdf_err(error, 'defining time time_origin' )
+
+        error = nf90_put_att(ncid, id_time, "long_name", "Centered Time")
+        call netcdf_err(error, 'defining time long name' )
+
+        error = nf90_put_att(ncid, id_time, "units", "seconds since 1970-01-01T00:00:00Z")
+        call netcdf_err(error, 'defining time units' )    
+    endif
+    
     !--- define longitude 
     error = nf90_def_var(ncid, 'lon', nf90_double, id_obs, id_lon)
     call netcdf_err(error, 'defining lon' )
@@ -368,7 +414,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     call netcdf_err(error, 'defining oro long name' )
 
     !--- define snow cover
-    error = nf90_def_var(ncid, 'IMSscf', nf90_double, id_obs, id_scfIMS)
+    error = nf90_def_var(ncid, 'IMSscf', nf90_double, (/id_obs,dim_time/), id_scfIMS)
     call netcdf_err(error, 'defining IMSscf' )
     error = nf90_put_att(ncid, id_scfIMS, "long_name", "IMS snow covered fraction")
     call netcdf_err(error, 'defining IMSscf long name' )
@@ -376,7 +422,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     call netcdf_err(error, 'defining IMSscf units' )
 
     !--- define snow depth
-    error = nf90_def_var(ncid, 'IMSsnd', nf90_double, id_obs, id_sndIMS)
+    error = nf90_def_var(ncid, 'IMSsnd', nf90_double, (/id_obs,dim_time/), id_sndIMS)
     call netcdf_err(error, 'defining IMSsnd' )
     error = nf90_put_att(ncid, id_sndIMS, "long_name", "IMS snow depth")
     call netcdf_err(error, 'defining IMSsnd long name' )
@@ -407,11 +453,21 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
       enddo 
      enddo 
     enddo
+   
+    ! --- put time, lat, lon, data
 
-    error = nf90_put_var(ncid, id_scfIMS, data_vec(1,:))
+    if(date_from_file == "ascifile") then
+        error = nf90_put_var(ncid, id_time, time_char)
+        call netcdf_err(error, 'writing time_str record')
+    else
+        error = nf90_put_var(ncid, id_time, time)
+        call netcdf_err(error, 'writing time record')
+    endif
+
+    error = nf90_put_var(ncid, id_scfIMS, data_vec(1,:), start = (/1,1/), count = (/nobs,1/))
     call netcdf_err(error, 'writing IMSscf record')
 
-    error = nf90_put_var(ncid, id_sndIMS, data_vec(2,:))
+    error = nf90_put_var(ncid, id_sndIMS, data_vec(2,:), start = (/1,1/), count = (/nobs,1/))
     call netcdf_err(error, 'writing IMSsnd record')
 
     error = nf90_put_var(ncid, id_lon, coor_vec(1,:))
@@ -543,7 +599,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 ! aggregate onto the model grid.
 
  subroutine read_IMS_onto_model_grid(IMS_obs_file, IMS_ind_path, &
-            imsformat, imsres, jdim, idim, otype, lonFV3, latFV3, oroFV3,scfIMS,date_from_file)
+            imsformat, imsres, jdim, idim, otype, lonFV3, latFV3, oroFV3,scfIMS, date_from_file, time)
                     
         implicit none
     
@@ -556,12 +612,13 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
         real, intent(out)              :: lonFV3(jdim,idim,6)     
         real, intent(out)              :: latFV3(jdim,idim,6)     
         real, intent(out)              :: oroFV3(jdim,idim,6)     
-   
+        double precision, intent(out)  :: time  
+ 
         integer, allocatable    :: IMS_flag(:,:)   
         integer, allocatable    :: IMS_index(:,:,:)
         real                    :: land_points(jdim,idim,6), snow_points(jdim,idim,6)
         
-        integer                :: error, ncid, id_dim, id_var , n_ind
+        integer                :: error, ncid, id_dim, id_var, n_ind, id_time
         integer                :: i_ims, j_ims, itile, tile, tile_i, tile_j
         logical                :: file_exists
         character(len=250)     :: IMS_ind_file
@@ -605,7 +662,8 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
                read(10,'(6144i1)') (IMS_flag(icol, irow), icol=1, i_ims)
             end do
  
-            date_from_file='ascifile'           
+            date_from_file='ascifile'
+            time=-999999           
  
         elseif (imsformat==2) then
         ! read in netCDF IMS data
@@ -617,6 +675,12 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
            
            error=nf90_get_var(ncid, id_var, IMS_flag)
            call netcdf_err(error, 'error reading IMS nc data' )
+
+           error=nf90_inq_varid(ncid, 'time', id_time)
+           call netcdf_err(error, 'error reading time id' )
+
+           error=nf90_get_var(ncid, id_time, time)
+           call netcdf_err(error, 'error reading time nc data' )
 
            error=nf90_get_att(ncid, nf90_global, 'time_coverage_end', datestring)
            date_from_file=datestring(1:4)//datestring(6:7)//datestring(9:10)
