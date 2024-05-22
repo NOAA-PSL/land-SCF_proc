@@ -80,7 +80,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
         character(len=250)  :: IMS_obs_file
         character(len=8)    :: date_from_file
         integer             :: i,j,t
-        double precision    :: time
+        integer             :: time
 !=============================================================================================
 ! 1. Read forecast info, and IMS data and indexes from file, then calculate SWE
 !=============================================================================================
@@ -307,7 +307,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     character(len=20), intent(in)  :: otype
     character(len=8), intent(in)   :: date_from_file
     integer, intent(in)            :: idim, jdim
-    double precision, intent(in)   :: time
+    integer, intent(in)            :: time
     real, intent(in)            :: scfIMS(idim,jdim,6)
     real, intent(in)            :: sndIMS(idim,jdim,6)
     real, intent(in)            :: latFV3(idim,jdim,6)
@@ -315,7 +315,6 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     real, intent(in)            :: oroFV3(idim,jdim,6)
 
     character(len=250)          :: output_file
-    character(len=8)            :: dateout
     character(len=10)           :: time_char
     integer                     :: header_buffer_val = 16384
     integer                     :: dim_time, id_time
@@ -340,10 +339,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     print *, 'writing out', nobs, ' observations'
 
     if(date_from_file == "ascifile") then
-      dateout = date_str(1:8)
       time_char =  date_str(1:8)//date_str(10:11)
-    else
-      dateout = date_from_file 
     endif
 
     allocate(data_vec(2,nobs)) 
@@ -353,45 +349,24 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     error = nf90_def_dim(ncid, 'numobs', nobs, id_obs)
     call netcdf_err(error, 'defining obs dimension' )
 
-    !--- define time dimension
-    error = nf90_def_dim(ncid, 'time', nf90_unlimited, dim_time)
-    call netcdf_err(error, 'defining time dimension' )
-
     ! --- define time variable and units
     if(date_from_file == "ascifile") then
-        error = nf90_def_var(ncid, 'time_str', nf90_char, dim_time, id_time)
-        call netcdf_err(error, 'defining time_str' )
 
-        error = nf90_put_att(ncid, id_time, "comment", "This is YYYYMMDDHH read from ascii file.")
+        error = nf90_put_att(ncid, NF90_GLOBAL, "valid_time_str", time_char)
+        call netcdf_err(error, 'put valid_date_str as global attribute')
+
+        error = nf90_put_att(ncid, NF90_GLOBAL, "comment", "This is YYYYMMDDHH read from ascii file.")
         call netcdf_err(error, 'defining time comment' )
 
     else   
-        error = nf90_def_var(ncid, 'time', nf90_double, dim_time, id_time)
-        call netcdf_err(error, 'defining time' )
+        error = nf90_put_att(ncid, NF90_GLOBAL, "valid_epoch_time", time)
+        call netcdf_err(error, 'put valid_epoch_time as global attribute')
 
-        error = nf90_put_att(ncid, id_time, "CoordinateAxisType", "Time")
-        call netcdf_err(error, 'defining time CoordinateAxisType' )
-
-        error = nf90_put_att(ncid, id_time, "axis", "T")
-        call netcdf_err(error, 'defining time axis' )
-
-        error = nf90_put_att(ncid, id_time, "comment", "This is the 00Z reference time. &
+        error = nf90_put_att(ncid, NF90_GLOBAL, "valid_epoch_time_comment", "This is the 00Z reference time. &
           Note that products are nowcasted to be valid specifically at the time given here.")
         call netcdf_err(error, 'defining time comment' )
 
-        error = nf90_put_att(ncid, id_time, "ioos_category", "Time")
-        call netcdf_err(error, 'defining time ioos_category' )
-
-        error = nf90_put_att(ncid, id_time, "standard_name", "time")
-        call netcdf_err(error, 'defining time standard name' )
-
-        error = nf90_put_att(ncid, id_time, "time_origin", "01-JAN-1970 00:00:00")
-        call netcdf_err(error, 'defining time time_origin' )
-
-        error = nf90_put_att(ncid, id_time, "long_name", "Centered Time")
-        call netcdf_err(error, 'defining time long name' )
-
-        error = nf90_put_att(ncid, id_time, "units", "seconds since 1970-01-01T00:00:00Z")
+        error = nf90_put_att(ncid, NF90_GLOBAL, "valid_epoch_time_units", "seconds since 1970-01-01T00:00:00Z")
         call netcdf_err(error, 'defining time units' )    
     endif
     
@@ -414,7 +389,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     call netcdf_err(error, 'defining oro long name' )
 
     !--- define snow cover
-    error = nf90_def_var(ncid, 'IMSscf', nf90_double, (/id_obs,dim_time/), id_scfIMS)
+    error = nf90_def_var(ncid, 'IMSscf', nf90_double, id_scfIMS)
     call netcdf_err(error, 'defining IMSscf' )
     error = nf90_put_att(ncid, id_scfIMS, "long_name", "IMS snow covered fraction")
     call netcdf_err(error, 'defining IMSscf long name' )
@@ -422,15 +397,12 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     call netcdf_err(error, 'defining IMSscf units' )
 
     !--- define snow depth
-    error = nf90_def_var(ncid, 'IMSsnd', nf90_double, (/id_obs,dim_time/), id_sndIMS)
+    error = nf90_def_var(ncid, 'IMSsnd', nf90_double, id_sndIMS)
     call netcdf_err(error, 'defining IMSsnd' )
     error = nf90_put_att(ncid, id_sndIMS, "long_name", "IMS snow depth")
     call netcdf_err(error, 'defining IMSsnd long name' )
     error = nf90_put_att(ncid, id_sndIMS, "units", "mm")
     call netcdf_err(error, 'defining IMSsnd units' )
-
-    error = nf90_put_att(ncid, NF90_GLOBAL, "valid_date", dateout)
-    call netcdf_err(error, 'put valid_date as global attribute')
 
     error = nf90_enddef(ncid)
     call netcdf_err(error, 'defining header' )
@@ -454,20 +426,12 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
      enddo 
     enddo
    
-    ! --- put time, lat, lon, data
+    ! --- put lat, lon, data
 
-    if(date_from_file == "ascifile") then
-        error = nf90_put_var(ncid, id_time, time_char)
-        call netcdf_err(error, 'writing time_str record')
-    else
-        error = nf90_put_var(ncid, id_time, time)
-        call netcdf_err(error, 'writing time record')
-    endif
-
-    error = nf90_put_var(ncid, id_scfIMS, data_vec(1,:), start = (/1,1/), count = (/nobs,1/))
+    error = nf90_put_var(ncid, id_scfIMS, data_vec(1,:))
     call netcdf_err(error, 'writing IMSscf record')
 
-    error = nf90_put_var(ncid, id_sndIMS, data_vec(2,:), start = (/1,1/), count = (/nobs,1/))
+    error = nf90_put_var(ncid, id_sndIMS, data_vec(2,:))
     call netcdf_err(error, 'writing IMSsnd record')
 
     error = nf90_put_var(ncid, id_lon, coor_vec(1,:))
@@ -612,7 +576,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
         real, intent(out)              :: lonFV3(jdim,idim,6)     
         real, intent(out)              :: latFV3(jdim,idim,6)     
         real, intent(out)              :: oroFV3(jdim,idim,6)     
-        double precision, intent(out)  :: time  
+        integer, intent(out)           :: time  
  
         integer, allocatable    :: IMS_flag(:,:)   
         integer, allocatable    :: IMS_index(:,:,:)
