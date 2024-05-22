@@ -355,8 +355,9 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
         error = nf90_put_att(ncid, NF90_GLOBAL, "valid_time_str", time_char)
         call netcdf_err(error, 'put valid_date_str as global attribute')
 
-        error = nf90_put_att(ncid, NF90_GLOBAL, "comment", "This is YYYYMMDDHH read from ascii file.")
-        call netcdf_err(error, 'defining time comment' )
+        error = nf90_put_att(ncid, NF90_GLOBAL, "valid_time_str_comment", "This is the 00Z reference time. &
+          Note that products are nowcasted to be valid specifically at the time given here.")
+        call netcdf_err(error, 'defining valid_time_str comment' )
 
     else   
         error = nf90_put_att(ncid, NF90_GLOBAL, "valid_epoch_time", time)
@@ -364,7 +365,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 
         error = nf90_put_att(ncid, NF90_GLOBAL, "valid_epoch_time_comment", "This is the 00Z reference time. &
           Note that products are nowcasted to be valid specifically at the time given here.")
-        call netcdf_err(error, 'defining time comment' )
+        call netcdf_err(error, 'defining "valid_epoch_time comment' )
 
         error = nf90_put_att(ncid, NF90_GLOBAL, "valid_epoch_time_units", "seconds since 1970-01-01T00:00:00Z")
         call netcdf_err(error, 'defining time units' )    
