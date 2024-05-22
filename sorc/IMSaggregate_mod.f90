@@ -645,9 +645,8 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
 
            error=nf90_get_var(ncid, id_time, time)
            call netcdf_err(error, 'error reading time nc data' )
-
-           error=nf90_get_att(ncid, nf90_global, 'time_coverage_end', datestring)
-           date_from_file=datestring(1:4)//datestring(6:7)//datestring(9:10)
+ 
+           date_from_file='nc_input'
            
            error = nf90_close(ncid)
 
