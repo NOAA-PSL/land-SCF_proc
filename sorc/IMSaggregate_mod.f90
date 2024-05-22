@@ -349,7 +349,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     error = nf90_def_dim(ncid, 'numobs', nobs, id_obs)
     call netcdf_err(error, 'defining obs dimension' )
 
-    ! --- define time variable and units
+    ! --- define global attributes and units for valid_time_str and valid_epoch_time
     if(date_from_file == "ascifile") then
 
         error = nf90_put_att(ncid, NF90_GLOBAL, "valid_time_str", time_char)
