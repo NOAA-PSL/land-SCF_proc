@@ -389,7 +389,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     call netcdf_err(error, 'defining oro long name' )
 
     !--- define snow cover
-    error = nf90_def_var(ncid, 'IMSscf', nf90_double, id_scfIMS)
+    error = nf90_def_var(ncid, 'IMSscf', nf90_double, id_obs, id_scfIMS)
     call netcdf_err(error, 'defining IMSscf' )
     error = nf90_put_att(ncid, id_scfIMS, "long_name", "IMS snow covered fraction")
     call netcdf_err(error, 'defining IMSscf long name' )
@@ -397,7 +397,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     call netcdf_err(error, 'defining IMSscf units' )
 
     !--- define snow depth
-    error = nf90_def_var(ncid, 'IMSsnd', nf90_double, id_sndIMS)
+    error = nf90_def_var(ncid, 'IMSsnd', nf90_double, id_obs, id_sndIMS)
     call netcdf_err(error, 'defining IMSsnd' )
     error = nf90_put_att(ncid, id_sndIMS, "long_name", "IMS snow depth")
     call netcdf_err(error, 'defining IMSsnd long name' )
