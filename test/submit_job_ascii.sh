@@ -40,10 +40,10 @@ cat >> fims.nml << EOF
   jdate=$JDATE,
   otype=${TSTUB},
   yyyymmddhh=${YYYY}${MM}${DD}.${HH},
-  imsformat=2,
+  imsformat=1,
   imsversion=1.3,
   imsres=4km,
-  IMS_obs_path="${SNOW_OBS_DIR}/snow_ice_cover/IMS/${YYYY}/",
+  IMS_obs_path="${SNOW_OBS_DIR}/snow_ice_cover/IMS/ascii/${YYYY}/",
   IMS_ind_path="${SNOW_OBS_DIR}/snow_ice_cover/IMS/index_files/",
   /
 EOF
