@@ -339,7 +339,7 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
     print *, 'writing out', nobs, ' observations'
 
     if(date_from_file == "ascifile") then
-      time_char =  date_str(1:8)//date_str(10:11)
+      time_char =  date_str(1:8)//"00"
     endif
 
     allocate(data_vec(2,nobs)) 
