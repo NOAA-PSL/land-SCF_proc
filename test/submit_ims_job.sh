@@ -24,8 +24,8 @@ fi
 if [ -e ${YYYY}${MM}${DD}.${HH}0000.sfc_data.tile1.nc ]; then 
 rm ${YYYY}${MM}${DD}.${HH}0000.sfc_data.tile*
 fi 
-if [ -e calcfIMS.exe ]; then 
-rm calcfIMS.exe
+if [ -e calcfSCF.exe ]; then 
+rm calcfSCF.exe
 fi
 
 DOY=$(date -d "${YYYY}-${MM}-${DD}" +%j)
@@ -40,10 +40,10 @@ cat >> fims.nml << EOF
   jdate=$JDATE,
   otype=${TSTUB},
   yyyymmddhh=${YYYY}${MM}${DD}.${HH},
-  imsformat=1,
+  imsformat=2,
   imsversion=1.3,
   imsres=4km,
-  IMS_obs_path="${SNOW_OBS_DIR}/snow_ice_cover/IMS/ascii/${YYYY}/",
+  IMS_obs_path="${SNOW_OBS_DIR}/snow_ice_cover/IMS/${YYYY}/",
   IMS_ind_path="${SNOW_OBS_DIR}/snow_ice_cover/IMS/index_files/",
   /
 EOF
@@ -55,7 +55,7 @@ do
 ln -s ${RESTART_DIR}/${YYYY}${MM}${DD}.${HH}0000.sfc_data.tile${tt}.nc .
 done
 
-ln -s ${EXEC_DIR}/calcfIMS.exe .
+ln -s ${EXEC_DIR}/calcfSCF.exe .
 
-calcfIMS.exe
+./calcfSCF.exe
 
