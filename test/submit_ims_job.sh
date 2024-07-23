@@ -18,8 +18,8 @@ source ../env_GDASApp
 
 export SNOW_OBS_DIR=/scratch2/NCEPDEV/land/data/DA/
 
-if [ -e fims.nml ]; then 
-rm fims.nml
+if [ -e fscf.nml ]; then 
+rm fscf.nml
 fi
 if [ -e ${YYYY}${MM}${DD}.${HH}0000.sfc_data.tile1.nc ]; then 
 rm ${YYYY}${MM}${DD}.${HH}0000.sfc_data.tile*
@@ -33,8 +33,9 @@ JDATE=$YYYY$DOY
 
 TSTUB=oro_C${RES}
 
-cat >> fims.nml << EOF
- &fIMS_nml
+cat >> fscf.nml << EOF
+ &fSCF_nml
+  source=1,
   idim=$RES, 
   jdim=$RES,
   jdate=$JDATE,
