@@ -31,6 +31,8 @@
  fcst_path="./"
  lsm=2 ! 1 - noah, 2 - noah-MP. 
  skip_SD=.false.
+ IS_IMS=.false.
+ IS_VIIRS=.false.
 
  ! read namelist to get observed snow cover fraction source
  inquire(file='fscf.nml', exist=file_exists)
