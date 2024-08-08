@@ -1,4 +1,4 @@
-module aggregate_mod
+module SCFaggregate_mod
 
 use netcdf
 use hdf5
@@ -1393,5 +1393,5 @@ subroutine calculate_scf(idim, jdim, source, otype, yyyymmddhh, jdate, fcst_path
 
  end subroutine calcSCF_noahmp
 
- end module aggregate_mod
+ end module SCFaggregate_mod
  

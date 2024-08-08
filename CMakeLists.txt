@@ -33,7 +33,7 @@ find_package(HDF5 REQUIRED COMPONENTS Fortran)
 set( SCFPROC_LINKER_LANGUAGE Fortran )
 
 list ( APPEND sorc_files
-./sorc/aggregate_mod.f90
+./sorc/SCFaggregate_mod.f90
 )
 
 ecbuild_add_library( TARGET   scfproc

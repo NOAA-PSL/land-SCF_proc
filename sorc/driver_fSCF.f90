@@ -7,7 +7,7 @@
 ! Clara Draper, July 2021 (based on code from Tseganeh Gichamo, Youlong Xia)
 ! Yuan Xue, July 2024 (merge VIIRS scf calculation capability with IMS')
 
- use aggregate_mod, only: calculate_scf
+ use SCFaggregate_mod, only: calculate_scf
 
  implicit none
 
