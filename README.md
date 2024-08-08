@@ -17,6 +17,6 @@ On hera, can use:
 See ./test for test case (hera only)
 
 Clara Draper, Tseganeh Gichamo, with input from Youlong Xia. June, 2021.
-Yuan Xue: add VIIRS processing capability and merge with original IMS'. July 2024.
+Yuan Xue: add VIIRS processing capability and merge with the original IMS processing unit. July 2024.
 
 
