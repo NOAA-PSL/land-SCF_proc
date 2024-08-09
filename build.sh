@@ -8,7 +8,7 @@ if [ $# == 1 ]; then
         env_file=$1
 else 
         # assume installed a subdir of DA_update
-        env_file="env_GDASApp" 
+        env_file="../env_GDASApp" 
 fi 
 source $env_file
 
