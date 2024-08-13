@@ -18,14 +18,14 @@ source ../env_GDASApp
 
 export SNOW_OBS_DIR=/scratch2/NCEPDEV/land/data/DA/
 
-if [ -e fims.nml ]; then 
-rm fims.nml
+if [ -e fscf.nml ]; then 
+rm fscf.nml
 fi
 if [ -e ${YYYY}${MM}${DD}.${HH}0000.sfc_data.tile1.nc ]; then 
 rm ${YYYY}${MM}${DD}.${HH}0000.sfc_data.tile*
 fi 
-if [ -e calcfIMS.exe ]; then 
-rm calcfIMS.exe
+if [ -e calcfSCF.exe ]; then 
+rm calcfSCF.exe
 fi
 
 DOY=$(date -d "${YYYY}-${MM}-${DD}" +%j)
@@ -33,8 +33,9 @@ JDATE=$YYYY$DOY
 
 TSTUB=oro_C${RES}
 
-cat >> fims.nml << EOF
- &fIMS_nml
+cat >> fscf.nml << EOF
+ &fSCF_nml
+  source=1,
   idim=$RES, 
   jdim=$RES,
   jdate=$JDATE,
@@ -55,7 +56,7 @@ do
 ln -s ${RESTART_DIR}/${YYYY}${MM}${DD}.${HH}0000.sfc_data.tile${tt}.nc .
 done
 
-ln -s ${EXEC_DIR}/calcfIMS.exe .
+ln -s ${EXEC_DIR}/calcfSCF.exe .
 
-calcfIMS.exe
+./calcfSCF.exe
 

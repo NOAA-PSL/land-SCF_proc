@@ -1,17 +1,17 @@
 SHELL=	/bin/ksh
 FC      =$(FCMP)
 LIBS    =$(LIBSM) 
-OBJS	=driver_fIMS.o IMSaggregate_mod.o
+OBJS	=driver_fSCF.o SCFaggregate_mod.o
 
-CMD     =calcfIMS
+CMD     =calcfSCF
 $(CMD):	$(OBJS)
 	${FC} $(FFLAGS) $(OBJS) $(LIBS) -o $(CMD)
 
-IMSaggregate_mod.o: IMSaggregate_mod.f90
-	$(FC)  $(FFLAGS) -c IMSaggregate_mod.f90
+SCFaggregate_mod.o: SCFaggregate_mod.f90
+	$(FC)  $(FFLAGS) -c SCFaggregate_mod.f90
 
-driver_fIMS.o: IMSaggregate_mod.o driver_fIMS.f90
-	$(FC)  $(FFLAGS) -c driver_fIMS.f90
+driver_fSCF.o: SCFaggregate_mod.o driver_fSCF.f90
+	$(FC)  $(FFLAGS) -c driver_fSCF.f90
 
 install:
 	-cp -p $(CMD) ../exec/.

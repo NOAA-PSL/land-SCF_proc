@@ -5,7 +5,7 @@
 
 
 cmake_minimum_required( VERSION 3.12)
-project( imsproc VERSION 2022.10 LANGUAGES Fortran )
+project( scfproc VERSION 2022.10 LANGUAGES Fortran )
 
 # ecbuild integration
 find_package(ecbuild 3.3.2 REQUIRED)
@@ -13,7 +13,7 @@ include( ecbuild_system NO_POLICY_SCOPE )
 ecbuild_declare_project()
 
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-include( imsproc_compiler_flags )
+include( scfproc_compiler_flags )
 
 ################################################################################
 # Dependencies
@@ -22,6 +22,7 @@ include( imsproc_compiler_flags )
 find_package(OpenMP COMPONENTS C Fortran)
 find_package(MPI REQUIRED COMPONENTS C Fortran)
 find_package(NetCDF REQUIRED COMPONENTS Fortran )
+find_package(HDF5 REQUIRED COMPONENTS Fortran)
 
 ################################################################################
 # Sources
@@ -29,24 +30,25 @@ find_package(NetCDF REQUIRED COMPONENTS Fortran )
 
 #add_definitions ( -DCPP=0 )
 
-set( IMSPROC_LINKER_LANGUAGE Fortran )
+set( SCFPROC_LINKER_LANGUAGE Fortran )
 
 list ( APPEND sorc_files
-./sorc/IMSaggregate_mod.f90
+./sorc/SCFaggregate_mod.f90
 )
 
-ecbuild_add_library( TARGET   imsproc
+ecbuild_add_library( TARGET   scfproc
                      SOURCES  ${sorc_files}
                      INSTALL_HEADERS LISTED
-                     LINKER_LANGUAGE ${IMSPROC_LINKER_LANGUAGE}
+		     LINKER_LANGUAGE ${SCFPROC_LINKER_LANGUAGE}
                     )
 
 
-target_link_libraries(imsproc PUBLIC NetCDF::NetCDF_Fortran)
-target_link_libraries(imsproc PUBLIC MPI::MPI_Fortran)
-target_link_libraries(imsproc PUBLIC OpenMP::OpenMP_C OpenMP::OpenMP_Fortran)
+target_link_libraries(scfproc PUBLIC NetCDF::NetCDF_Fortran)
+target_link_libraries(scfproc PUBLIC HDF5::HDF5)
+target_link_libraries(scfproc PUBLIC MPI::MPI_Fortran)
+target_link_libraries(scfproc PUBLIC OpenMP::OpenMP_C OpenMP::OpenMP_Fortran)
 
-#target_compile_options(imsproc PRIVATE  -r8 -init=huge -cpp, -DCCPP=.false. )
+#target_compile_options(scfproc PRIVATE  -r8 -init=huge -cpp, -DCCPP=.false. )
 
 # Fortran module output directory for build and install interfaces
 set(MODULE_DIR module/${PROJECT_NAME}/${CMAKE_Fortran_COMPILER_ID}/${CMAKE_Fortran_COMPILER_VERSION})
@@ -56,17 +58,17 @@ target_include_directories(${PROJECT_NAME} INTERFACE
                             $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/${MODULE_DIR}>
                             $<INSTALL_INTERFACE:${MODULE_DIR}>)
 
-set( IMSPROC_INCLUDE_DIRS  ${CMAKE_Fortran_MODULE_DIRECTORY} )
-set( IMSPROC_LIBRARIES imsproc )
+set( SCFPROC_INCLUDE_DIRS  ${CMAKE_Fortran_MODULE_DIRECTORY} )
+set( SCFPROC_LIBRARIES scfproc )
 
-# calcfIMS.exe executable
+# calcfSCF.exe executable
 #-------------------------------------------------------------------------------
-set ( exe_files ./sorc/driver_fIMS.f90 )
+set ( exe_files ./sorc/driver_fSCF.f90 )
 
-ecbuild_add_executable( TARGET   calcfIMS.exe
+ecbuild_add_executable( TARGET   calcfSCF.exe
                         SOURCES  ${exe_files}
-                        LIBS     imsproc
-                        LINKER_LANGUAGE ${IMSPROC_LINKER_LANGUAGE}
+                        LIBS     scfproc
+			LINKER_LANGUAGE ${SCFPROC_LINKER_LANGUAGE}
                        )
 
 
@@ -74,5 +76,5 @@ ecbuild_add_executable( TARGET   calcfIMS.exe
 # Finalise configuration
 ################################################################################
 
-ecbuild_install_project( NAME imsproc )
+ecbuild_install_project( NAME scfproc )
 ecbuild_print_summary()
