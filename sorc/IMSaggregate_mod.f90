@@ -144,7 +144,8 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
                             ! additional check to remove obs if obs have full snow, but calculated snow depth is lower than the model
                             if ( (scfIMS(i,j,t) >= 0.5 ) .and.  & 
                                     (  (scffcs(i,j,t) > trunc_scf ) .or.  (sndfcs(i,j,t ) >  sndIMS(i,j,t) ) ) ) then 
-                                   sndIMS(i,j,t) = nodata_real
+                                   !sndIMS(i,j,t) = nodata_real
+                                   sndIMS(i,j,t) = -10. ! give a different value, so can be removed after thinning in UFO filter
                             endif 
                             if ( sndIMS(i,j,t) > sndIMS_max ) then 
                                    sndIMS(i,j,t) = nodata_real
