@@ -144,7 +144,8 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
                             ! additional check to remove obs if obs have full snow, but calculated snow depth is lower than the model
                             if ( (scfIMS(i,j,t) >= 0.5 ) .and.  & 
                                     (  (scffcs(i,j,t) > trunc_scf ) .or.  (sndfcs(i,j,t ) >  sndIMS(i,j,t) ) ) ) then 
-                                   sndIMS(i,j,t) = nodata_real
+                                   !sndIMS(i,j,t) = nodata_real
+                                   sndIMS(i,j,t) = -10. ! give a different value, so can be removed after thinning in UFO filter
                             endif 
                             if ( sndIMS(i,j,t) > sndIMS_max ) then 
                                    sndIMS(i,j,t) = nodata_real
@@ -519,10 +520,10 @@ subroutine calculate_scfIMS(idim, jdim, otype, yyyymmddhh, jdate, IMS_obs_path, 
             swefcs(:,:,t) = dummy
 
             ! snow depth
-            error=nf90_inq_varid(ncid, "snwdph", id_var)
-            call netcdf_err(error, 'reading snwdph id' )
+            error=nf90_inq_varid(ncid, "snodl", id_var)
+            call netcdf_err(error, 'reading snodl id' )
             error=nf90_get_var(ncid, id_var, dummy)
-            call netcdf_err(error, 'reading snwdph' )
+            call netcdf_err(error, 'reading snodl' )
             sndfcs(:,:,t) = dummy
 
             ! layer 1 soil temperature
