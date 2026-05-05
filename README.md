@@ -1,3 +1,13 @@
+*************************
+MAY 5, 2025: 
+
+This code has been replaced by gdas_fv3jedi_scf_to_ioda in https://github.com/ClaraDraper-NOAA/GDASApp/blob/develop/utils/land/  , and has been  archived. 
+
+To process IMS observations, please use code above. 
+Clara Draper
+**************************
+
+
 Code for processing IMS input ascii files on the UFS model grid.
 
 Inputs: IMS ascii file, IMS index file (generated offline).
